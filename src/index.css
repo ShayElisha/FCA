@@ -2,14 +2,14 @@
   --ink: #0b1c2c;
   --ink-soft: #3a5166;
   --paper: #f3f7fa;
-  --sea: #0f4c81;
-  --sea-deep: #083358;
-  --foam: #d7e8f3;
+  --sea: #16a34a;
+  --sea-deep: #15803d;
+  --foam: #d1fae5;
   --accent: #c45c26;
   --line: rgba(11, 28, 44, 0.12);
   --danger: #9b1c1c;
-  --ok: #1f6b4a;
-  --shadow: 0 18px 50px rgba(8, 51, 88, 0.12);
+  --ok: #16a34a;
+  --shadow: 0 18px 50px rgba(21, 128, 61, 0.12);
   font-family: 'Assistant', 'IBM Plex Sans', system-ui, sans-serif;
   color: var(--ink);
   background: var(--paper);
@@ -49,9 +49,9 @@ body {
   inset: 0;
   z-index: -1;
   background:
-    radial-gradient(1200px 500px at 80% -10%, rgba(15, 76, 129, 0.18), transparent 60%),
+    radial-gradient(1200px 500px at 80% -10%, rgba(22, 163, 74, 0.18), transparent 60%),
     radial-gradient(900px 420px at 0% 100%, rgba(196, 92, 38, 0.12), transparent 55%),
-    linear-gradient(180deg, #e8f1f7 0%, #f3f7fa 42%, #eef3f7 100%);
+    linear-gradient(180deg, #e8f7f0 0%, #f3f7fa 42%, #eef7f3 100%);
 }
 
 .brand {
@@ -85,7 +85,7 @@ body {
 .lede code {
   font-family: 'IBM Plex Sans', ui-monospace, monospace;
   font-size: 0.92em;
-  background: rgba(15, 76, 129, 0.08);
+  background: rgba(22, 163, 74, 0.08);
   padding: 0.1em 0.35em;
   border-radius: 6px;
 }
@@ -136,9 +136,9 @@ body {
 }
 
 .progress-banner {
-  background: rgba(215, 232, 243, 0.9);
+  background: rgba(209, 250, 229, 0.9);
   color: var(--sea-deep);
-  border: 1px solid rgba(15, 76, 129, 0.16);
+  border: 1px solid rgba(22, 163, 74, 0.16);
 }
 
 .progress-meta {
@@ -156,7 +156,7 @@ body {
 
 .badge.carrier {
   color: var(--sea-deep);
-  background: rgba(15, 76, 129, 0.12);
+  background: rgba(22, 163, 74, 0.12);
 }
 
 .strategy {
@@ -201,7 +201,7 @@ input {
 }
 
 input:focus {
-  outline: 2px solid rgba(15, 76, 129, 0.35);
+  outline: 2px solid rgba(22, 163, 74, 0.35);
   border-color: var(--sea);
 }
 
