@@ -42,10 +42,13 @@ docker run -p 8787:8787 -e SCRAPE_MODE=chrome fca-scraper
 בפרויקט Vercel הגדירו Environment Variable:
 
 ```
-SCRAPER_UPSTREAM_URL=https://YOUR-SCRAPER-HOST
+SCRAPER_UPSTREAM_URL=https://scraper-production-c76b4a13.up.railway.app
 ```
 
 אחרי זה `https://fca-ruby.vercel.app` יעביר את הסריקות לשרת ה־Chrome — בלי עקיפת Akamai.
+
+Scraper host (Railway): https://scraper-production-c76b4a13.up.railway.app  
+Health: `/api/health` → `readyForMsc: true` כשהחיבור תקין.
 
 ## Production UI
 
