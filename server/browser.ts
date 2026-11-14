@@ -24,10 +24,11 @@ async function launchBrowser(): Promise<Browser> {
     })
   }
 
-  // Real Chrome / Playwright browsers on a persistent host (local, Docker, VPS)
+  // Real browser on a persistent host (local Chrome, or Playwright image in Docker/Railway)
   const { chromium } = await import('playwright')
 
-  if (preferChrome) {
+  // Prefer installed Google Chrome on developer machines
+  if (preferChrome && process.env.SCRAPE_FORCE_BUNDLED !== '1') {
     try {
       return await chromium.launch({
         channel: 'chrome',
@@ -35,13 +36,17 @@ async function launchBrowser(): Promise<Browser> {
         args: ['--disable-blink-features=AutomationControlled'],
       })
     } catch {
-      // Docker Playwright image may not have channel=chrome; use bundled browser.
+      // Fall through to Playwright-bundled Chromium (Docker image)
     }
   }
 
   return chromium.launch({
     headless: true,
-    args: ['--disable-blink-features=AutomationControlled'],
+    args: [
+      '--disable-blink-features=AutomationControlled',
+      '--no-sandbox',
+      '--disable-dev-shm-usage',
+    ],
   })
 }
 

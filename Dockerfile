@@ -1,4 +1,4 @@
-# Persistent Chrome/Playwright scraper host for Vercel upstream.
+# Persistent Playwright scraper host (browsers from the base image).
 FROM mcr.microsoft.com/playwright:v1.49.1-jammy
 
 WORKDIR /app
@@ -9,7 +9,9 @@ ENV SCRAPE_MODE=chrome
 ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
 
 COPY package.json package-lock.json ./
-RUN npm ci --omit=dev
+# Keep Playwright version locked to the base image (1.49.1)
+RUN npm ci --omit=dev \
+  && npm install playwright@1.49.1 playwright-core@1.49.1 --save-exact --omit=dev
 
 COPY server ./server
 
