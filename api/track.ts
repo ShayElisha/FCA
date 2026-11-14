@@ -38,6 +38,36 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return
   }
 
+  // Preferred production path: forward to a Chrome scraper host (Docker/VPS).
+  // Avoids Akamai blocking of Vercel serverless Chromium — no bot-bypass tricks.
+  const upstream = process.env.SCRAPER_UPSTREAM_URL?.replace(/\/$/, '')
+  if (upstream) {
+    try {
+      const proxied = await fetch(`${upstream}/api/track`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(req.body ?? {}),
+      })
+      const text = await proxied.text()
+      res.status(proxied.status)
+      const ct = proxied.headers.get('content-type') || 'application/json'
+      res.setHeader('Content-Type', ct)
+      res.send(text)
+      return
+    } catch (error) {
+      res.status(502).json({
+        ok: false,
+        error: {
+          code: 'PROVIDER_UNAVAILABLE',
+          message:
+            'שרת הסריקה עם Chrome לא זמין. בדקו את SCRAPER_UPSTREAM_URL.',
+          details: error instanceof Error ? error.message : String(error),
+        },
+      })
+      return
+    }
+  }
+
   const containerNumber = normalizeContainer(req.body?.containerNumber)
   const carrierIdRaw = req.body?.carrierId
     ? String(req.body.carrierId)

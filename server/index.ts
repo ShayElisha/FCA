@@ -18,8 +18,9 @@ app.use(express.json())
 app.get('/api/health', (_req, res) => {
   res.json({
     ok: true,
-    mode: 'local-scrape',
-    message: 'Playwright scraping (compatible with Vercel /api/scrape)',
+    mode: process.env.SCRAPE_MODE === 'chrome' ? 'chrome-host' : 'local-scrape',
+    message:
+      'Chrome/Playwright scraper host — point Vercel SCRAPER_UPSTREAM_URL here',
   })
 })
 

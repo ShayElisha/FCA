@@ -1,34 +1,52 @@
-# FCA — מעקב מכולות (Vercel Serverless + Scraping)
+# FCA — מעקב מכולות רב־חברתי
 
-סריקת דפי Track & Trace של חברות ספנות באמצעות **Playwright על Vercel Serverless**.  
-**אין שימוש ב־API של חברות הספנות.**
+סריקת דפי Track & Trace עם Playwright. **אין שימוש ב־API רשמי של חברות הספנות.**
 
-## איך זה רץ ב-Vercel
+## למה יש חסימה ב־Vercel?
 
-1. ה־UI קורא ל־`POST /api/scrape` לכל חברה בנפרד
-2. כל קריאה היא Serverless Function עם Chromium (`@sparticuz/chromium`)
-3. אם לא נמצא — ממשיכים לחברה הבאה
+MSC (ואתרים דומים) משתמשים ב־Akamai נגד בוטים.  
+Chromium של Vercel Serverless נחסם. **לא נעקוף את ההגנה** (stealth / CAPTCHA solvers) — זה שביר ומנוגד ל־ToS.
 
-## הרצה מקומית (מומלץ ל-MSC)
+## הפתרון שעובד
 
-MSC חוסם Chromium מובנה של Playwright (Akamai). מקומית צריך **Google Chrome מותקן** — הסקרייפר ישתמש ב־`channel: 'chrome'`.
+להריץ את הסקרייפר על **מארח עם דפדפן אמיתי** (המחשב שלכם / Docker / VPS), ולחבר אליו את ה־UI ב־Vercel.
+
+```
+[Vercel UI]  --POST /api/track-->  [Vercel proxy]  -->  [Chrome scraper host]
+```
+
+### 1) הרצה מקומית (הכי פשוט)
+
+דורש Google Chrome מותקן:
 
 ```bash
 npm install
-npx playwright install chromium
 npm run dev
 ```
 
 - UI: http://localhost:5173  
-- שרת: http://localhost:8787  
+- Scraper: http://localhost:8787  
+- בדיקה: `npx tsx scripts/test-msc-container.mts MSCU6789016`
 
-בדיקת MSC:
-`npx tsx scripts/test-msc-container.mts MSCU6789016`
+### 2) Docker (ל־VPS / Railway / Render / Fly)
 
+```bash
+docker build -t fca-scraper .
+docker run -p 8787:8787 -e SCRAPE_MODE=chrome fca-scraper
+```
 
-## Production
+בדקו: `curl http://HOST:8787/api/health`
+
+### 3) חיבור ל־Vercel
+
+בפרויקט Vercel הגדירו Environment Variable:
+
+```
+SCRAPER_UPSTREAM_URL=https://YOUR-SCRAPER-HOST
+```
+
+אחרי זה `https://fca-ruby.vercel.app` יעביר את הסריקות לשרת ה־Chrome — בלי עקיפת Akamai.
+
+## Production UI
 
 https://fca-ruby.vercel.app
-
-דורש תוכנית שמאפשרת `maxDuration` מספיק לסריקת דף (מוגדר 60 שנ' לפונקציה).  
-זיכרון מומלץ: 1024MB לפונקציית הסריקה.

@@ -38,9 +38,10 @@ const SCRAPER_BASE =
 const CONCURRENCY = Number(import.meta.env.VITE_SCRAPE_CONCURRENCY ?? 4)
 
 const BLOCKED_MSG =
-  'אתרי הספנות חסמו את הסריקה האוטומטית (הגנת בוטים / Akamai). ' +
-  'ב־Vercel זה נפוץ במיוחד עבור MSC. ' +
-  'להרצה אמינה: התקינו Google Chrome והריצו מקומית עם npm run dev (http://localhost:5173).'
+  'אתרי הספנות חסמו את Chromium של Vercel (הגנת בוטים / Akamai). ' +
+  'לא ניתן לעקוף את ההגנה מכאן. ' +
+  'כדי שזה יעבוד: הריצו שרת סריקה עם Chrome (npm run dev או Docker) ' +
+  'והגדירו ב־Vercel את SCRAPER_UPSTREAM_URL לכתובת השרת.'
 
 /**
  * Multi-carrier search with accurate blocked vs not-found handling.
