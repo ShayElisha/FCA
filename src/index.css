@@ -1,0 +1,261 @@
+:root {
+  --ink: #0b1c2c;
+  --ink-soft: #3a5166;
+  --paper: #f3f7fa;
+  --sea: #0f4c81;
+  --sea-deep: #083358;
+  --foam: #d7e8f3;
+  --accent: #c45c26;
+  --line: rgba(11, 28, 44, 0.12);
+  --danger: #9b1c1c;
+  --ok: #1f6b4a;
+  --shadow: 0 18px 50px rgba(8, 51, 88, 0.12);
+  font-family: 'Assistant', 'IBM Plex Sans', system-ui, sans-serif;
+  color: var(--ink);
+  background: var(--paper);
+  line-height: 1.5;
+  font-weight: 400;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+}
+
+#root {
+  min-height: 100vh;
+}
+
+.page {
+  position: relative;
+  min-height: 100vh;
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 2.5rem 1.25rem 3rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.75rem;
+}
+
+.atmosphere {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  background:
+    radial-gradient(1200px 500px at 80% -10%, rgba(15, 76, 129, 0.18), transparent 60%),
+    radial-gradient(900px 420px at 0% 100%, rgba(196, 92, 38, 0.12), transparent 55%),
+    linear-gradient(180deg, #e8f1f7 0%, #f3f7fa 42%, #eef3f7 100%);
+}
+
+.brand {
+  animation: rise 0.7s ease both;
+}
+
+.brand-mark {
+  margin: 0 0 0.35rem;
+  font-family: 'IBM Plex Sans', sans-serif;
+  font-size: clamp(2.6rem, 8vw, 4rem);
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  color: var(--sea-deep);
+  line-height: 1;
+}
+
+.brand h1 {
+  margin: 0;
+  font-size: clamp(1.35rem, 3.5vw, 1.8rem);
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.lede {
+  margin: 0.65rem 0 0;
+  color: var(--ink-soft);
+  font-size: 1.05rem;
+  max-width: 34rem;
+}
+
+.search {
+  background: rgba(255, 255, 255, 0.72);
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  padding: 1.15rem 1.15rem 1rem;
+  box-shadow: var(--shadow);
+  backdrop-filter: blur(8px);
+  animation: rise 0.8s ease 0.08s both;
+}
+
+.search label {
+  display: block;
+  font-weight: 700;
+  margin-bottom: 0.45rem;
+}
+
+.row {
+  display: flex;
+  gap: 0.65rem;
+  flex-wrap: wrap;
+}
+
+input {
+  flex: 1 1 220px;
+  min-height: 48px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 0.7rem 0.9rem;
+  font: inherit;
+  font-size: 1.05rem;
+  letter-spacing: 0.04em;
+  background: #fff;
+  color: var(--ink);
+}
+
+input:focus {
+  outline: 2px solid rgba(15, 76, 129, 0.35);
+  border-color: var(--sea);
+}
+
+button {
+  min-height: 48px;
+  border: 0;
+  border-radius: 12px;
+  padding: 0.7rem 1.2rem;
+  background: var(--sea);
+  color: #fff;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+  transition: transform 0.15s ease, background 0.15s ease;
+}
+
+button:hover:not(:disabled) {
+  background: var(--sea-deep);
+  transform: translateY(-1px);
+}
+
+button:disabled {
+  opacity: 0.7;
+  cursor: wait;
+}
+
+.help {
+  margin: 0.55rem 0 0;
+  color: var(--ink-soft);
+  font-size: 0.92rem;
+}
+
+.error {
+  margin: 0.55rem 0 0;
+  color: var(--danger);
+  font-weight: 600;
+}
+
+.banner {
+  border-radius: 14px;
+  padding: 0.9rem 1rem;
+  animation: rise 0.35s ease both;
+}
+
+.error-banner {
+  background: #fdecec;
+  color: var(--danger);
+  border: 1px solid rgba(155, 28, 28, 0.18);
+}
+
+.result {
+  background: rgba(255, 255, 255, 0.84);
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  padding: 1.2rem 1.2rem 0.4rem;
+  box-shadow: var(--shadow);
+  animation: rise 0.45s ease both;
+}
+
+.result-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.35rem;
+}
+
+.result h2 {
+  margin: 0;
+  font-size: 1.15rem;
+}
+
+.badge {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--accent);
+  background: rgba(196, 92, 38, 0.12);
+  border-radius: 999px;
+  padding: 0.25rem 0.65rem;
+}
+
+dl {
+  margin: 0;
+}
+
+dl > div {
+  display: grid;
+  grid-template-columns: minmax(8rem, 11rem) 1fr;
+  gap: 0.5rem 1rem;
+  padding: 0.85rem 0;
+  border-top: 1px solid var(--line);
+}
+
+dt {
+  color: var(--ink-soft);
+  font-weight: 600;
+}
+
+dd {
+  margin: 0;
+  font-weight: 600;
+}
+
+.eta {
+  color: var(--sea-deep);
+  font-size: 1.15rem;
+}
+
+footer {
+  margin-top: auto;
+  color: var(--ink-soft);
+  font-size: 0.92rem;
+  animation: rise 0.9s ease 0.12s both;
+}
+
+footer p {
+  margin: 0;
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (max-width: 560px) {
+  dl > div {
+    grid-template-columns: 1fr;
+    gap: 0.2rem;
+  }
+
+  button {
+    width: 100%;
+  }
+}
