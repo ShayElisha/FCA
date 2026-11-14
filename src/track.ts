@@ -26,16 +26,24 @@ type ScrapeApiResponse =
   | { ok: true; status: 'not_found' | 'blocked' | 'error'; details?: string }
   | { ok: false; error: TrackingError }
 
+type ScrapeOutcome =
+  | { kind: 'found'; data: Omit<ContainerTrackingResult, 'searchMeta'> }
+  | { kind: 'not_found' }
+  | { kind: 'blocked'; details?: string }
+  | { kind: 'error'; details?: string }
+
 const SCRAPER_BASE =
   import.meta.env.VITE_SCRAPER_URL?.replace(/\/$/, '') || ''
 
-/** Parallel serverless invocations — biggest UX speed win */
 const CONCURRENCY = Number(import.meta.env.VITE_SCRAPE_CONCURRENCY ?? 4)
 
+const BLOCKED_MSG =
+  'אתרי הספנות חסמו את הסריקה האוטומטית (הגנת בוטים / Akamai). ' +
+  'ב־Vercel זה נפוץ במיוחד עבור MSC. ' +
+  'להרצה אמינה: התקינו Google Chrome והריצו מקומית עם npm run dev (http://localhost:5173).'
+
 /**
- * Fast multi-carrier search:
- * 1) Prefix carriers in parallel
- * 2) Fan-out in parallel batches; first hit wins
+ * Multi-carrier search with accurate blocked vs not-found handling.
  */
 export async function trackContainer(
   containerNumber: string,
@@ -44,6 +52,9 @@ export async function trackContainer(
   const primary = detectCarriersByOwnerCode(containerNumber)
   const order = getSearchOrder(containerNumber)
   const checked: CarrierId[] = []
+  let blockedCount = 0
+  let notFoundCount = 0
+  let errorCount = 0
 
   const report = (
     phase: SearchProgress['phase'],
@@ -57,28 +68,59 @@ export async function trackContainer(
     })
   }
 
+  const tally = (outcomes: ScrapeOutcome[]) => {
+    for (const o of outcomes) {
+      if (o.kind === 'blocked') blockedCount += 1
+      else if (o.kind === 'not_found') notFoundCount += 1
+      else if (o.kind === 'error') errorCount += 1
+    }
+  }
+
   if (primary.length > 0) {
     report('prefix', primary.map((c) => c.name).join(', '))
-    const hit = await raceCarriers(
+    const { hit, outcomes } = await raceCarriers(
       primary,
       containerNumber,
       checked,
       (names) => report('prefix', names),
     )
+    tally(outcomes)
+
     if (hit) {
       report('done')
       return { ok: true, data: withMeta(hit, checked, true, 'prefix') }
     }
+
+    // Prefix carrier blocked (e.g. MSC on Vercel) — stop early with clear guidance
+    const primaryBlocked = outcomes.every(
+      (o) => o.kind === 'blocked' || o.kind === 'error',
+    )
+    if (primaryBlocked && outcomes.length > 0) {
+      report('done')
+      const names = primary.map((c) => c.name).join(', ')
+      return {
+        ok: false,
+        error: {
+          code: 'SOURCE_BLOCKED',
+          message: `${names} חסמו את הסריקה האוטומטית. ${BLOCKED_MSG}`,
+        },
+      }
+    }
   }
 
   const remaining = order.filter((c) => !checked.includes(c.id))
-  report('fanout', remaining.slice(0, CONCURRENCY).map((c) => c.name).join(', '))
-  const hit = await raceCarriers(
+  report(
+    'fanout',
+    remaining.slice(0, CONCURRENCY).map((c) => c.name).join(', '),
+  )
+  const { hit, outcomes } = await raceCarriers(
     remaining,
     containerNumber,
     checked,
     (names) => report('fanout', names),
   )
+  tally(outcomes)
+
   if (hit) {
     report('done')
     return {
@@ -88,12 +130,24 @@ export async function trackContainer(
   }
 
   report('done')
+
+  const attempted = blockedCount + notFoundCount + errorCount
+  if (attempted > 0 && blockedCount + errorCount >= Math.ceil(attempted * 0.6)) {
+    return {
+      ok: false,
+      error: {
+        code: 'SOURCE_BLOCKED',
+        message: BLOCKED_MSG,
+      },
+    }
+  }
+
   return {
     ok: false,
     error: {
       code: 'NOT_FOUND',
-      message: `מספר המכולה לא נמצא לאחר סריקה מקבילית של החברות (${order
-        .map((c) => c.name)
+      message: `מספר המכולה לא נמצא לאחר סריקה של החברות (${checked
+        .map((id) => CARRIERS.find((c) => c.id === id)!.name)
         .join(', ')}). נא לוודא את המספר.`,
     },
   }
@@ -104,28 +158,37 @@ async function raceCarriers(
   containerNumber: string,
   checked: CarrierId[],
   onBatch?: (names: string) => void,
-): Promise<Omit<ContainerTrackingResult, 'searchMeta'> | null> {
+): Promise<{
+  hit: Omit<ContainerTrackingResult, 'searchMeta'> | null
+  outcomes: ScrapeOutcome[]
+}> {
+  const outcomes: ScrapeOutcome[] = []
+
   for (let i = 0; i < carriers.length; i += CONCURRENCY) {
     const batch = carriers.slice(i, i + CONCURRENCY)
     onBatch?.(batch.map((c) => c.name).join(', '))
 
-    const results = await Promise.all(
+    const batchOutcomes = await Promise.all(
       batch.map(async (carrier) => {
         checked.push(carrier.id)
         return scrapeCarrier(containerNumber, carrier.id)
       }),
     )
+    outcomes.push(...batchOutcomes)
 
-    const found = results.find((r) => r !== null) ?? null
-    if (found) return found
+    const found = batchOutcomes.find((o) => o.kind === 'found')
+    if (found && found.kind === 'found') {
+      return { hit: found.data, outcomes }
+    }
   }
-  return null
+
+  return { hit: null, outcomes }
 }
 
 async function scrapeCarrier(
   containerNumber: string,
   carrierId: CarrierId,
-): Promise<Omit<ContainerTrackingResult, 'searchMeta'> | null> {
+): Promise<ScrapeOutcome> {
   let response: Response
   try {
     response = await fetch(`${SCRAPER_BASE}/api/track`, {
@@ -138,7 +201,7 @@ async function scrapeCarrier(
       trackingError: {
         code: 'PROVIDER_UNAVAILABLE',
         message:
-          'פונקציית הסריקה לא זמינה. בדקו שהפרויקט רץ על Vercel Serverless.',
+          'שרת הסריקה לא זמין. הריצו מקומית: npm run dev (עם Google Chrome מותקן).',
       } satisfies TrackingError,
     })
   }
@@ -147,7 +210,7 @@ async function scrapeCarrier(
     throw Object.assign(new Error('track endpoint missing'), {
       trackingError: {
         code: 'PROVIDER_UNAVAILABLE',
-        message: `נתיב /api/track החזיר ${response.status}. רעננו את העמוד אחרי דיפלוי.`,
+        message: `נתיב /api/track החזיר ${response.status}. רעננו את העמוד או הריצו npm run dev.`,
       } satisfies TrackingError,
     })
   }
@@ -160,19 +223,22 @@ async function scrapeCarrier(
         trackingError: json.error,
       })
     }
-    return null
+    return { kind: 'error', details: json.error.message }
   }
 
   if (json.status === 'found') {
-    return { ...json.data, source: 'scrape' }
+    return { kind: 'found', data: { ...json.data, source: 'scrape' } }
   }
 
-  // Surface block reason for the primary carrier in progress UIs via details
-  if (json.status === 'blocked' && json.details) {
-    console.warn('carrier blocked', carrierId, json.details)
+  if (json.status === 'blocked') {
+    return { kind: 'blocked', details: json.details }
   }
 
-  return null
+  if (json.status === 'error') {
+    return { kind: 'error', details: json.details }
+  }
+
+  return { kind: 'not_found' }
 }
 
 function withMeta(

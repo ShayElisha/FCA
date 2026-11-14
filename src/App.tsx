@@ -63,8 +63,9 @@ export default function App() {
         <p className="brand-mark">FCA</p>
         <h1>מעקב מכולות רב־חברתי</h1>
         <p className="lede">
-          הזינו מספר מכולה — סריקה מקבילית מהירה של אתרי המעקב (Serverless),
-          קודם לפי קידומת ואז בשאר החברות, בלי API שלהן.
+          הזינו מספר מכולה לחיפוש באתרי המעקב. ל־MSC מומלץ להריץ מקומית עם
+          Google Chrome (<code>npm run dev</code>) — ב־Vercel אתרים רבים חוסמים
+          סריקה אוטומטית.
         </p>
       </header>
 
@@ -120,7 +121,7 @@ export default function App() {
 
       <footer>
         <p>
-          סריקה מקבילית (4 חברות יחד) · קיצורי URL · בלי תמונות/פונטים · בלי API חברות.
+          MSC על Vercel עלול להיחסם · להרצה אמינה: npm run dev עם Chrome מקומי.
         </p>
       </footer>
     </div>
