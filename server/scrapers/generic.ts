@@ -12,18 +12,70 @@ import {
 import type { CarrierScrapeOutcome } from '../types.js'
 
 const INPUT_SELECTORS = [
+  // Container-specific
   'input[name*="container" i]',
   'input[id*="container" i]',
   'input[placeholder*="container" i]',
   'input[aria-label*="container" i]',
+  'input[class*="container" i]',
+  'input[data-test*="container" i]',
+  
+  // Tracking-specific
   'input[name*="tracking" i]',
+  'input[id*="tracking" i]',
+  'input[placeholder*="tracking" i]',
+  'input[aria-label*="tracking" i]',
   'input[name="trackingNumber"]',
+  'input[id="trackingNumber"]',
+  'input[name="track"]',
+  'input[id="track"]',
+  
+  // Shipment/cargo
+  'input[name*="shipment" i]',
+  'input[id*="shipment" i]',
+  'input[placeholder*="shipment" i]',
+  'input[name*="cargo" i]',
+  'input[id*="cargo" i]',
+  
+  // Reference/BL
+  'input[name*="reference" i]',
+  'input[id*="reference" i]',
+  'input[placeholder*="reference" i]',
+  'input[name*="bill" i]',
+  'input[name*="bl" i]',
+  
+  // Number fields
+  'input[placeholder*="number" i]',
+  'input[aria-label*="number" i]',
+  
+  // Framework-specific
   'input.ant-input',
+  'input[class*="MuiInput"]',
+  'input[class*="form-control"]',
+  'input[class*="input"]',
+  
+  // Generic
   'input[type="search"]',
   'input[type="text"]',
+  'input:not([type])',
 ]
 
+function randomDelay(min: number, max: number): Promise<void> {
+  const delay = Math.floor(Math.random() * (max - min + 1)) + min
+  return new Promise((resolve) => setTimeout(resolve, delay))
+}
+
+async function humanLikeMouseMove(page: Page): Promise<void> {
+  const x = Math.floor(Math.random() * 500) + 100
+  const y = Math.floor(Math.random() * 300) + 100
+  await page.mouse.move(x, y).catch(() => undefined)
+  await randomDelay(50, 150)
+}
+
 async function dismissCookieBanners(page: Page): Promise<void> {
+  await randomDelay(500, 1000)
+  await humanLikeMouseMove(page)
+  
   for (const label of [
     'Allow All',
     'Accept All',
@@ -33,11 +85,16 @@ async function dismissCookieBanners(page: Page): Promise<void> {
     'I agree',
     'Got it',
     'Confirm',
+    'OK',
+    'I Accept',
+    'Continue',
   ]) {
     const btn = page.getByRole('button', { name: new RegExp(`^${label}$`, 'i') }).first()
     if (await btn.isVisible().catch(() => false)) {
+      await randomDelay(200, 500)
       await btn.click({ timeout: 1500 }).catch(() => undefined)
-      await page.waitForTimeout(300)
+      await randomDelay(300, 700)
+      break
     }
   }
 }
@@ -60,13 +117,14 @@ export async function scrapeCarrierPage(
     const url = resolveTrackUrl(carrier, containerNumber)
     const usedDirect = url !== carrier.trackingUrl
 
+    await randomDelay(100, 300)
     await page.goto(url, {
       waitUntil: 'domcontentloaded',
-      timeout: 20000,
+      timeout: 25000,
     })
 
-    // Brief settle only — avoid long fixed sleeps / networkidle
-    await page.waitForTimeout(usedDirect ? 400 : 600)
+    await randomDelay(usedDirect ? 800 : 1200, usedDirect ? 1500 : 2000)
+    await humanLikeMouseMove(page)
     await dismissCookieBanners(page)
 
     const bodyEarly = await page.locator('body').innerText().catch(() => '')
@@ -76,9 +134,11 @@ export async function scrapeCarrierPage(
 
     // Direct URL may already show results
     if (usedDirect && looksLikeResult(bodyEarly, containerNumber)) {
+      await randomDelay(500, 1000)
       return buildFound(carrier, containerNumber, bodyEarly)
     }
 
+    await randomDelay(300, 600)
     const filled = await fillContainerInput(page, containerNumber)
     if (!filled) {
       if (looksLikeResult(bodyEarly, containerNumber)) {
@@ -90,11 +150,14 @@ export async function scrapeCarrierPage(
       }
     }
 
+    await randomDelay(500, 1000)
+    await humanLikeMouseMove(page)
     await submitSearch(page)
+    
     await page
-      .waitForLoadState('domcontentloaded', { timeout: 8000 })
+      .waitForLoadState('domcontentloaded', { timeout: 10000 })
       .catch(() => undefined)
-    await page.waitForTimeout(700)
+    await randomDelay(1000, 1500)
 
     const text = await page.locator('body').innerText()
 
@@ -168,19 +231,37 @@ async function fillContainerInput(
     const locator = page.locator(selector).first()
     if ((await locator.count().catch(() => 0)) === 0) continue
     if (!(await locator.isVisible().catch(() => false))) continue
-    await locator.fill(containerNumber, { timeout: 1500 }).catch(() => undefined)
+    
+    await locator.click({ timeout: 1500 }).catch(() => undefined)
+    await randomDelay(100, 300)
+    
+    await locator.clear().catch(() => undefined)
+    await randomDelay(50, 150)
+    
+    for (const char of containerNumber) {
+      await locator.type(char, { delay: Math.floor(Math.random() * 100) + 50 })
+    }
+    
+    await randomDelay(200, 400)
     return true
   }
   return false
 }
 
 async function submitSearch(page: Page): Promise<void> {
+  await randomDelay(300, 600)
+  
   for (const selector of SUBMIT_SELECTORS) {
     const locator = page.locator(selector).first()
     if ((await locator.count().catch(() => 0)) === 0) continue
     if (!(await locator.isVisible().catch(() => false))) continue
+    
+    await humanLikeMouseMove(page)
+    await randomDelay(100, 300)
     await locator.click({ timeout: 2000 })
     return
   }
+  
+  await randomDelay(100, 200)
   await page.keyboard.press('Enter')
 }

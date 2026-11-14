@@ -30,6 +30,18 @@ type MscTrackingResponse = {
   }
 }
 
+function randomDelay(min: number, max: number): Promise<void> {
+  const delay = Math.floor(Math.random() * (max - min + 1)) + min
+  return new Promise((resolve) => setTimeout(resolve, delay))
+}
+
+async function humanLikeMouseMove(page: Page): Promise<void> {
+  const x = Math.floor(Math.random() * 500) + 100
+  const y = Math.floor(Math.random() * 300) + 100
+  await page.mouse.move(x, y).catch(() => undefined)
+  await randomDelay(50, 150)
+}
+
 /**
  * MSC public track page posts to /api/feature/tools/TrackingInfo.
  * We open the site's params URL and capture that JSON response.
@@ -64,15 +76,19 @@ export async function scrapeMsc(
 
     page.on('response', onResponse)
 
+    await randomDelay(200, 400)
     const nav = await page.goto(url, {
       waitUntil: 'domcontentloaded',
-      timeout: 25000,
+      timeout: 30000,
     })
+
+    await randomDelay(800, 1200)
+    await humanLikeMouseMove(page)
 
     const early = await page.locator('body').innerText().catch(() => '')
     if (
       nav?.status() === 403 ||
-      /access denied|you don't have permission/i.test(early)
+      /access denied|you don't have permission|cloudflare|captcha/i.test(early)
     ) {
       page.off('response', onResponse)
       return {
@@ -82,28 +98,36 @@ export async function scrapeMsc(
       }
     }
 
-    const deadline = Date.now() + 12000
+    const deadline = Date.now() + 15000
     while (!trackingJson && Date.now() < deadline) {
-      await page.waitForTimeout(300)
+      await randomDelay(400, 600)
     }
     page.off('response', onResponse)
 
     if (!trackingJson) {
+      await randomDelay(500, 800)
       const api = await page.request.post(
         'https://www.msc.com/api/feature/tools/TrackingInfo',
         {
           data: { trackingNumber: containerNumber, trackingMode: '0' },
           headers: {
             'Content-Type': 'application/json',
-            Origin: 'https://www.msc.com',
-            Referer: 'https://www.msc.com/en/track-a-shipment',
-            Accept: 'application/json',
+            'Origin': 'https://www.msc.com',
+            'Referer': 'https://www.msc.com/en/track-a-shipment',
+            'Accept': 'application/json',
+            'Accept-Language': 'en-US,en;q=0.9',
+            'Accept-Encoding': 'gzip, deflate, br',
+            'DNT': '1',
+            'Connection': 'keep-alive',
+            'Sec-Fetch-Dest': 'empty',
+            'Sec-Fetch-Mode': 'cors',
+            'Sec-Fetch-Site': 'same-origin',
           },
-          timeout: 12000,
+          timeout: 15000,
         },
       )
       const text = await api.text()
-      if (api.status() >= 400 || /access denied/i.test(text)) {
+      if (api.status() >= 400 || /access denied|cloudflare|captcha/i.test(text)) {
         return {
           status: 'blocked',
           details: `MSC TrackingInfo HTTP ${api.status()}`,

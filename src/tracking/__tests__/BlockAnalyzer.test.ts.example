@@ -1,0 +1,237 @@
+/**
+ * Block Analyzer Tests
+ * 
+ * These tests demonstrate the testing approach for the new tracking engine.
+ * 
+ * To run these tests, first install a testing framework:
+ *   npm install -D vitest @vitest/ui
+ * 
+ * Then add to package.json:
+ *   "test": "vitest"
+ *   "test:ui": "vitest --ui"
+ * 
+ * @ts-nocheck - Vitest not yet installed
+ */
+
+// import { describe, it, expect } from 'vitest'
+import { BlockAnalyzer } from '../diagnostics/BlockAnalyzer'
+import { ErrorCode, ErrorCategory } from '../models/TrackingResult'
+
+describe('BlockAnalyzer', () => {
+  describe('HTTP Status Analysis', () => {
+    it('should classify 403 with Cloudflare body as CLOUDFLARE_CHALLENGE', () => {
+      const result = BlockAnalyzer.analyze({
+        httpStatus: 403,
+        responseBody: '<html>Checking if the site connection is secure</html>',
+        url: 'https://example.com/track',
+        provider: 'test',
+        requestId: 'req-123',
+      })
+      
+      expect(result.code).toBe(ErrorCode.CLOUDFLARE_CHALLENGE)
+      expect(result.category).toBe(ErrorCategory.ACCESS_CONTROL)
+      expect(result.retryable).toBe(false)
+    })
+    
+    it('should classify 403 with CAPTCHA as CAPTCHA_REQUIRED', () => {
+      const result = BlockAnalyzer.analyze({
+        httpStatus: 403,
+        responseBody: '<div class="g-recaptcha"></div>',
+        url: 'https://example.com/track',
+        provider: 'test',
+        requestId: 'req-123',
+      })
+      
+      expect(result.code).toBe(ErrorCode.CAPTCHA_REQUIRED)
+      expect(result.category).toBe(ErrorCategory.ACCESS_CONTROL)
+      expect(result.retryable).toBe(false)
+    })
+    
+    it('should classify generic 403 as FORBIDDEN', () => {
+      const result = BlockAnalyzer.analyze({
+        httpStatus: 403,
+        responseBody: 'Access forbidden',
+        url: 'https://example.com/track',
+        provider: 'test',
+        requestId: 'req-123',
+      })
+      
+      expect(result.code).toBe(ErrorCode.FORBIDDEN)
+      expect(result.category).toBe(ErrorCategory.ACCESS_CONTROL)
+      expect(result.retryable).toBe(false)
+    })
+    
+    it('should classify 429 with Retry-After as TOO_MANY_REQUESTS', () => {
+      const result = BlockAnalyzer.analyze({
+        httpStatus: 429,
+        responseHeaders: { 'retry-after': '60' },
+        url: 'https://example.com/track',
+        provider: 'test',
+        requestId: 'req-123',
+      })
+      
+      expect(result.code).toBe(ErrorCode.TOO_MANY_REQUESTS)
+      expect(result.category).toBe(ErrorCategory.RATE_LIMIT)
+      expect(result.retryable).toBe(true)
+      expect(result.details).toContain('Retry-After: 60')
+    })
+    
+    it('should classify 404 with container mention as CONTAINER_NOT_FOUND', () => {
+      const result = BlockAnalyzer.analyze({
+        httpStatus: 404,
+        responseBody: 'Container not found in our system',
+        url: 'https://example.com/track',
+        provider: 'test',
+        requestId: 'req-123',
+      })
+      
+      expect(result.code).toBe(ErrorCode.CONTAINER_NOT_FOUND)
+      expect(result.category).toBe(ErrorCategory.VALIDATION)
+      expect(result.retryable).toBe(false)
+    })
+    
+    it('should classify 500 as INTERNAL_SERVER_ERROR', () => {
+      const result = BlockAnalyzer.analyze({
+        httpStatus: 500,
+        url: 'https://example.com/track',
+        provider: 'test',
+        requestId: 'req-123',
+      })
+      
+      expect(result.code).toBe(ErrorCode.INTERNAL_SERVER_ERROR)
+      expect(result.category).toBe(ErrorCategory.PROVIDER)
+      expect(result.retryable).toBe(true)
+    })
+    
+    it('should classify 503 as SERVICE_UNAVAILABLE', () => {
+      const result = BlockAnalyzer.analyze({
+        httpStatus: 503,
+        url: 'https://example.com/track',
+        provider: 'test',
+        requestId: 'req-123',
+      })
+      
+      expect(result.code).toBe(ErrorCode.SERVICE_UNAVAILABLE)
+      expect(result.category).toBe(ErrorCategory.PROVIDER)
+      expect(result.retryable).toBe(true)
+    })
+  })
+  
+  describe('Response Body Analysis', () => {
+    it('should detect Cloudflare challenge from body patterns', () => {
+      const result = BlockAnalyzer.analyze({
+        responseBody: 'Cloudflare Ray ID: abc123',
+        url: 'https://example.com/track',
+        provider: 'test',
+        requestId: 'req-123',
+      })
+      
+      expect(result.code).toBe(ErrorCode.CLOUDFLARE_CHALLENGE)
+      expect(result.category).toBe(ErrorCategory.ACCESS_CONTROL)
+    })
+    
+    it('should detect reCAPTCHA from body', () => {
+      const result = BlockAnalyzer.analyze({
+        responseBody: '<script src="https://www.google.com/recaptcha/api.js"></script>',
+        url: 'https://example.com/track',
+        provider: 'test',
+        requestId: 'req-123',
+      })
+      
+      expect(result.code).toBe(ErrorCode.CAPTCHA_REQUIRED)
+    })
+    
+    it('should detect session expiration', () => {
+      const result = BlockAnalyzer.analyze({
+        responseBody: 'Your session has timed out. Please log in again.',
+        url: 'https://example.com/track',
+        provider: 'test',
+        requestId: 'req-123',
+      })
+      
+      expect(result.code).toBe(ErrorCode.SESSION_EXPIRED)
+      expect(result.retryable).toBe(true)
+    })
+  })
+  
+  describe('Playwright Error Classification', () => {
+    it('should classify timeout errors', () => {
+      const error = new Error('Navigation timeout of 30000ms exceeded')
+      const result = BlockAnalyzer.classifyPlaywrightError(error, 'test', 'req-123')
+      
+      expect(result.code).toBe(ErrorCode.NAVIGATION_TIMEOUT)
+      expect(result.category).toBe(ErrorCategory.NETWORK)
+      expect(result.retryable).toBe(true)
+    })
+    
+    it('should classify DNS errors', () => {
+      const error = new Error('net::ERR_NAME_NOT_RESOLVED at https://example.com')
+      const result = BlockAnalyzer.classifyPlaywrightError(error, 'test', 'req-123')
+      
+      expect(result.code).toBe(ErrorCode.DNS_FAILURE)
+      expect(result.category).toBe(ErrorCategory.NETWORK)
+      expect(result.retryable).toBe(true)
+    })
+    
+    it('should classify connection refused', () => {
+      const error = new Error('net::ERR_CONNECTION_REFUSED')
+      const result = BlockAnalyzer.classifyPlaywrightError(error, 'test', 'req-123')
+      
+      expect(result.code).toBe(ErrorCode.CONNECTION_REFUSED)
+      expect(result.category).toBe(ErrorCategory.NETWORK)
+      expect(result.retryable).toBe(true)
+    })
+    
+    it('should classify browser crashes', () => {
+      const error = new Error('Browser has been closed')
+      const result = BlockAnalyzer.classifyPlaywrightError(error, 'test', 'req-123')
+      
+      expect(result.code).toBe(ErrorCode.BROWSER_CRASH)
+      expect(result.category).toBe(ErrorCategory.AUTOMATION)
+      expect(result.retryable).toBe(true)
+    })
+  })
+  
+  describe('Error Metadata', () => {
+    it('should include all required metadata fields', () => {
+      const result = BlockAnalyzer.analyze({
+        httpStatus: 404,
+        url: 'https://example.com/track',
+        provider: 'msc',
+        requestId: 'req-123',
+      })
+      
+      expect(result).toHaveProperty('code')
+      expect(result).toHaveProperty('category')
+      expect(result).toHaveProperty('provider', 'msc')
+      expect(result).toHaveProperty('timestamp')
+      expect(result).toHaveProperty('requestId', 'req-123')
+      expect(result).toHaveProperty('sourceUrl', 'https://example.com/track')
+      expect(result).toHaveProperty('retryable')
+      expect(result).toHaveProperty('message')
+    })
+    
+    it('should include HTTP status when provided', () => {
+      const result = BlockAnalyzer.analyze({
+        httpStatus: 403,
+        url: 'https://example.com/track',
+        provider: 'test',
+        requestId: 'req-123',
+      })
+      
+      expect(result.httpStatus).toBe(403)
+    })
+    
+    it('should include recommendations', () => {
+      const result = BlockAnalyzer.analyze({
+        httpStatus: 429,
+        url: 'https://example.com/track',
+        provider: 'test',
+        requestId: 'req-123',
+      })
+      
+      expect(result.recommendation).toBeDefined()
+      expect(result.recommendation).toContain('backoff')
+    })
+  })
+})

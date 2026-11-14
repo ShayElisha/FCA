@@ -3,6 +3,18 @@ import type { Carrier } from '../carriers.js'
 import { detectIsraelPort, parseLooseDate } from '../parse.js'
 import type { CarrierScrapeOutcome } from '../types.js'
 
+function randomDelay(min: number, max: number): Promise<void> {
+  const delay = Math.floor(Math.random() * (max - min + 1)) + min
+  return new Promise((resolve) => setTimeout(resolve, delay))
+}
+
+async function humanLikeMouseMove(page: Page): Promise<void> {
+  const x = Math.floor(Math.random() * 500) + 100
+  const y = Math.floor(Math.random() * 300) + 100
+  await page.mouse.move(x, y).catch(() => undefined)
+  await randomDelay(50, 150)
+}
+
 /**
  * COSCO eLines tracker lives in /scct (Ant Design SPA).
  * Deep-link with trackingType=container&number=… — no carrier API client.
@@ -17,26 +29,44 @@ export async function scrapeCosco(
       `https://elines.coscoshipping.com/scct/public/ct/base` +
       `?lang=en&trackingType=container&number=${encodeURIComponent(containerNumber)}`
 
+    await randomDelay(200, 400)
     await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 })
+    
+    await randomDelay(1000, 1500)
+    await humanLikeMouseMove(page)
     await dismissCoscoNoise(page)
+    
     await page
-      .waitForSelector('input.ant-input, .ant-input', { timeout: 12000 })
+      .waitForSelector('input.ant-input, .ant-input', { timeout: 15000 })
       .catch(() => undefined)
 
+    await randomDelay(500, 800)
+    
     // Ensure number is in the field (deep-link usually prefills)
     const input = page.locator('input.ant-input').first()
     if (await input.count()) {
       const current = await input.inputValue().catch(() => '')
       if (current.toUpperCase() !== containerNumber) {
-        await input.fill(containerNumber)
+        await input.click().catch(() => undefined)
+        await randomDelay(200, 400)
+        await input.clear().catch(() => undefined)
+        await randomDelay(100, 200)
+        
+        for (const char of containerNumber) {
+          await input.type(char, { delay: Math.floor(Math.random() * 100) + 50 })
+        }
+        
+        await randomDelay(500, 800)
+        await humanLikeMouseMove(page)
+        
         await page.getByRole('button', { name: /search/i }).first().click().catch(async () => {
           await page.keyboard.press('Enter')
         })
       }
     }
 
-    await page.waitForTimeout(1500)
-    const deadline = Date.now() + 12000
+    await randomDelay(1500, 2000)
+    const deadline = Date.now() + 15000
     let text = ''
     while (Date.now() < deadline) {
       text = await page.locator('body').innerText().catch(() => '')
@@ -48,10 +78,10 @@ export async function scrapeCosco(
       ) {
         break
       }
-      await page.waitForTimeout(400)
+      await randomDelay(500, 700)
     }
 
-    if (/access denied|verify you are human|just a moment/i.test(text)) {
+    if (/access denied|verify you are human|just a moment|cloudflare|captcha/i.test(text)) {
       return {
         status: 'blocked',
         details: 'COSCO blocked automated browser on eLines page',
@@ -76,11 +106,16 @@ export async function scrapeCosco(
 }
 
 async function dismissCoscoNoise(page: Page): Promise<void> {
-  for (const label of ['Allow All', 'Accept All', 'Accept', 'Confirm']) {
+  await randomDelay(300, 600)
+  
+  for (const label of ['Allow All', 'Accept All', 'Accept', 'Confirm', 'OK', 'I Accept', 'Continue']) {
     const btn = page.getByRole('button', { name: new RegExp(`^${label}$`, 'i') }).first()
     if (await btn.isVisible().catch(() => false)) {
+      await humanLikeMouseMove(page)
+      await randomDelay(200, 400)
       await btn.click().catch(() => undefined)
-      await page.waitForTimeout(400)
+      await randomDelay(600, 900)
+      break
     }
   }
 }
