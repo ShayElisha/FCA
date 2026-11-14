@@ -63,8 +63,8 @@ export default function App() {
         <p className="brand-mark">FCA</p>
         <h1>מעקב מכולות רב־חברתי</h1>
         <p className="lede">
-          הזינו מספר מכולה — המערכת סורקת אתרי מעקב של חברות הספנות דרך
-          Vercel Serverless (Playwright), בלי API של החברות, ומציגה ETA לישראל.
+          הזינו מספר מכולה — סריקה מקבילית מהירה של אתרי המעקב (Serverless),
+          קודם לפי קידומת ואז בשאר החברות, בלי API שלהן.
         </p>
       </header>
 
@@ -91,7 +91,7 @@ export default function App() {
               disabled={loading}
             />
             <button type="submit" disabled={loading}>
-              {loading ? 'סורק אתרים…' : 'חפש בכל החברות'}
+              {loading ? 'סריקה מקבילית…' : 'חפש בכל החברות'}
             </button>
           </div>
           <p id="container-help" className="help">
@@ -120,7 +120,7 @@ export default function App() {
 
       <footer>
         <p>
-          סריקה ב־Serverless (פונקציה לכל חברה) · Playwright · בלי API של חברות הספנות.
+          סריקה מקבילית (4 חברות יחד) · קיצורי URL · בלי תמונות/פונטים · בלי API חברות.
         </p>
       </footer>
     </div>
@@ -143,9 +143,9 @@ function CarrierStrip() {
 function SearchStatus({ progress }: { progress: SearchProgress }) {
   const phaseLabel =
     progress.phase === 'prefix'
-      ? 'סורק לפי קידומת המכולה'
+      ? 'סריקה מקבילית לפי קידומת'
       : progress.phase === 'fanout'
-        ? 'לא נמצא בקידומת — עובר לאתרים הבאים'
+        ? 'לא נמצא בקידומת — סריקה מקבילית לשאר'
         : 'מסיים'
 
   return (

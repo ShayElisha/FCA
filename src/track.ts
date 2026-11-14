@@ -2,6 +2,7 @@ import {
   CARRIERS,
   detectCarriersByOwnerCode,
   getSearchOrder,
+  type Carrier,
   type CarrierId,
 } from './carriers'
 import type {
@@ -28,8 +29,13 @@ type ScrapeApiResponse =
 const SCRAPER_BASE =
   import.meta.env.VITE_SCRAPER_URL?.replace(/\/$/, '') || ''
 
+/** Parallel serverless invocations — biggest UX speed win */
+const CONCURRENCY = Number(import.meta.env.VITE_SCRAPE_CONCURRENCY ?? 4)
+
 /**
- * Multi-carrier search via Vercel Serverless `POST /api/track` (one carrier per call).
+ * Fast multi-carrier search:
+ * 1) Prefix carriers in parallel
+ * 2) Fan-out in parallel batches; first hit wins
  */
 export async function trackContainer(
   containerNumber: string,
@@ -53,29 +59,31 @@ export async function trackContainer(
 
   if (primary.length > 0) {
     report('prefix', primary.map((c) => c.name).join(', '))
-    for (const carrier of primary) {
-      report('prefix', carrier.name)
-      const hit = await scrapeCarrier(containerNumber, carrier.id, checked)
-      if (hit) {
-        report('done')
-        return {
-          ok: true,
-          data: withMeta(hit, checked, true, 'prefix'),
-        }
-      }
+    const hit = await raceCarriers(
+      primary,
+      containerNumber,
+      checked,
+      (names) => report('prefix', names),
+    )
+    if (hit) {
+      report('done')
+      return { ok: true, data: withMeta(hit, checked, true, 'prefix') }
     }
   }
 
   const remaining = order.filter((c) => !checked.includes(c.id))
-  for (const carrier of remaining) {
-    report('fanout', carrier.name)
-    const hit = await scrapeCarrier(containerNumber, carrier.id, checked)
-    if (hit) {
-      report('done')
-      return {
-        ok: true,
-        data: withMeta(hit, checked, primary.length > 0, 'fanout'),
-      }
+  report('fanout', remaining.slice(0, CONCURRENCY).map((c) => c.name).join(', '))
+  const hit = await raceCarriers(
+    remaining,
+    containerNumber,
+    checked,
+    (names) => report('fanout', names),
+  )
+  if (hit) {
+    report('done')
+    return {
+      ok: true,
+      data: withMeta(hit, checked, primary.length > 0, 'fanout'),
     }
   }
 
@@ -84,20 +92,40 @@ export async function trackContainer(
     ok: false,
     error: {
       code: 'NOT_FOUND',
-      message: `מספר המכולה לא נמצא לאחר סריקת דפי המעקב של החברות (${order
+      message: `מספר המכולה לא נמצא לאחר סריקה מקבילית של החברות (${order
         .map((c) => c.name)
         .join(', ')}). נא לוודא את המספר.`,
     },
   }
 }
 
+async function raceCarriers(
+  carriers: Carrier[],
+  containerNumber: string,
+  checked: CarrierId[],
+  onBatch?: (names: string) => void,
+): Promise<Omit<ContainerTrackingResult, 'searchMeta'> | null> {
+  for (let i = 0; i < carriers.length; i += CONCURRENCY) {
+    const batch = carriers.slice(i, i + CONCURRENCY)
+    onBatch?.(batch.map((c) => c.name).join(', '))
+
+    const results = await Promise.all(
+      batch.map(async (carrier) => {
+        checked.push(carrier.id)
+        return scrapeCarrier(containerNumber, carrier.id)
+      }),
+    )
+
+    const found = results.find((r) => r !== null) ?? null
+    if (found) return found
+  }
+  return null
+}
+
 async function scrapeCarrier(
   containerNumber: string,
   carrierId: CarrierId,
-  checked: CarrierId[],
 ): Promise<Omit<ContainerTrackingResult, 'searchMeta'> | null> {
-  checked.push(carrierId)
-
   let response: Response
   try {
     response = await fetch(`${SCRAPER_BASE}/api/track`, {
@@ -136,10 +164,7 @@ async function scrapeCarrier(
   }
 
   if (json.status === 'found') {
-    return {
-      ...json.data,
-      source: 'scrape',
-    }
+    return { ...json.data, source: 'scrape' }
   }
 
   return null

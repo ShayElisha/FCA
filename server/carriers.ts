@@ -19,15 +19,30 @@ export interface Carrier {
   nameHe: string
   ownerCodes: string[]
   trackingUrl: string
+  directTrackUrl?: (containerNumber: string) => string
+  priority: number
 }
 
 export const CARRIERS: Carrier[] = [
+  {
+    id: 'zim',
+    name: 'ZIM',
+    nameHe: 'צים',
+    ownerCodes: ['ZIM', 'ZCS', 'ZIMU', 'ZCSU'],
+    trackingUrl: 'https://www.zim.com/tools/track-a-shipment',
+    directTrackUrl: (c) =>
+      `https://www.zim.com/tools/track-a-shipment?consNumber=${c}`,
+    priority: 1,
+  },
   {
     id: 'msc',
     name: 'MSC',
     nameHe: 'MSC',
     ownerCodes: ['MSC'],
     trackingUrl: 'https://www.msc.com/en/track-a-shipment',
+    directTrackUrl: (c) =>
+      `https://www.msc.com/en/track-a-shipment?trackingNumber=${c}`,
+    priority: 2,
   },
   {
     id: 'maersk',
@@ -35,6 +50,8 @@ export const CARRIERS: Carrier[] = [
     nameHe: 'מארסק',
     ownerCodes: ['MSK', 'MAE', 'MRK', 'MAEU', 'MRSU', 'MWMU'],
     trackingUrl: 'https://www.maersk.com/tracking',
+    directTrackUrl: (c) => `https://www.maersk.com/tracking/${c}`,
+    priority: 3,
   },
   {
     id: 'cma_cgm',
@@ -42,6 +59,9 @@ export const CARRIERS: Carrier[] = [
     nameHe: 'CMA CGM',
     ownerCodes: ['CMA', 'CGM', 'CMDU', 'CADU'],
     trackingUrl: 'https://www.cma-cgm.com/ebusiness/tracking',
+    directTrackUrl: (c) =>
+      `https://www.cma-cgm.com/ebusiness/tracking/search?SearchType=2&Reference=${c}`,
+    priority: 4,
   },
   {
     id: 'hapag_lloyd',
@@ -49,20 +69,25 @@ export const CARRIERS: Carrier[] = [
     nameHe: 'הפג-לויד',
     ownerCodes: ['HLX', 'HLC', 'HLCU', 'HASU', 'HLXU'],
     trackingUrl: 'https://www.hapag-lloyd.com/en/online-business/track.html',
-  },
-  {
-    id: 'cosco',
-    name: 'COSCO',
-    nameHe: 'COSCO',
-    ownerCodes: ['CSN', 'COS', 'CBHU', 'COSU', 'CSNU'],
-    trackingUrl: 'https://world.lines.coscoshipping.com/estore/public/cargoTracking',
+    priority: 5,
   },
   {
     id: 'one',
     name: 'ONE',
     nameHe: 'ONE',
     ownerCodes: ['ONE', 'ONY', 'NYK', 'MOL', 'KKT', 'ONEY', 'MOAU'],
-    trackingUrl: 'https://ecomm.one-line.com/one-ecom/manage-shipment/cargo-tracking',
+    trackingUrl:
+      'https://ecomm.one-line.com/one-ecom/manage-shipment/cargo-tracking',
+    priority: 6,
+  },
+  {
+    id: 'cosco',
+    name: 'COSCO',
+    nameHe: 'COSCO',
+    ownerCodes: ['CSN', 'COS', 'CBHU', 'COSU', 'CSNU'],
+    trackingUrl:
+      'https://world.lines.coscoshipping.com/estore/public/cargoTracking',
+    priority: 7,
   },
   {
     id: 'evergreen',
@@ -70,34 +95,34 @@ export const CARRIERS: Carrier[] = [
     nameHe: 'אברגרין',
     ownerCodes: ['EGH', 'EIS', 'EMC', 'EITU', 'EMCU', 'EGHU'],
     trackingUrl: 'https://www.evergreen-line.com/',
-  },
-  {
-    id: 'zim',
-    name: 'ZIM',
-    nameHe: 'צים',
-    ownerCodes: ['ZIM', 'ZCS', 'ZIMU', 'ZCSU'],
-    trackingUrl: 'https://www.zim.com/tools/track-a-shipment',
-  },
-  {
-    id: 'yang_ming',
-    name: 'Yang Ming',
-    nameHe: 'יאנג מינג',
-    ownerCodes: ['YML', 'YMCU', 'YMLU'],
-    trackingUrl: 'https://www.yangming.com/e-service/Track_Trace/track_trace_cargo_tracking.aspx',
-  },
-  {
-    id: 'hmm',
-    name: 'HMM',
-    nameHe: 'HMM',
-    ownerCodes: ['HDM', 'HMM', 'HDMU', 'HMMU'],
-    trackingUrl: 'https://www.hmm21.com/e-service/general/trackNTrace/TrackNTrace.do',
+    priority: 8,
   },
   {
     id: 'oocl',
     name: 'OOCL',
     nameHe: 'OOCL',
     ownerCodes: ['OOL', 'OOLU'],
-    trackingUrl: 'https://www.oocl.com/eng/ourservices/eservices/cargotracking',
+    trackingUrl:
+      'https://www.oocl.com/eng/ourservices/eservices/cargotracking',
+    priority: 9,
+  },
+  {
+    id: 'hmm',
+    name: 'HMM',
+    nameHe: 'HMM',
+    ownerCodes: ['HDM', 'HMM', 'HDMU', 'HMMU'],
+    trackingUrl:
+      'https://www.hmm21.com/e-service/general/trackNTrace/TrackNTrace.do',
+    priority: 10,
+  },
+  {
+    id: 'yang_ming',
+    name: 'Yang Ming',
+    nameHe: 'יאנג מינג',
+    ownerCodes: ['YML', 'YMCU', 'YMLU'],
+    trackingUrl:
+      'https://www.yangming.com/e-service/Track_Trace/track_trace_cargo_tracking.aspx',
+    priority: 11,
   },
   {
     id: 'pil',
@@ -105,6 +130,7 @@ export const CARRIERS: Carrier[] = [
     nameHe: 'PIL',
     ownerCodes: ['PCI', 'PCIU'],
     trackingUrl: 'https://www.pilship.com/',
+    priority: 12,
   },
   {
     id: 'wan_hai',
@@ -112,6 +138,7 @@ export const CARRIERS: Carrier[] = [
     nameHe: 'ואן האי',
     ownerCodes: ['WHL', 'WHLU'],
     trackingUrl: 'https://www.wanhai.com/views/cargoTrack.xhtml',
+    priority: 13,
   },
 ]
 
@@ -143,6 +170,15 @@ export function detectCarriersByOwnerCode(containerNumber: string): Carrier[] {
 export function getSearchOrder(containerNumber: string): Carrier[] {
   const primary = detectCarriersByOwnerCode(containerNumber)
   const primaryIds = new Set(primary.map((c) => c.id))
-  const rest = CARRIERS.filter((c) => !primaryIds.has(c.id))
+  const rest = CARRIERS.filter((c) => !primaryIds.has(c.id)).sort(
+    (a, b) => a.priority - b.priority,
+  )
   return [...primary, ...rest]
+}
+
+export function resolveTrackUrl(
+  carrier: Carrier,
+  containerNumber: string,
+): string {
+  return carrier.directTrackUrl?.(containerNumber) ?? carrier.trackingUrl
 }

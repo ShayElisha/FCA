@@ -1,5 +1,5 @@
 import type { Page } from 'playwright-core'
-import type { Carrier } from '../carriers.js'
+import { resolveTrackUrl, type Carrier } from '../carriers.js'
 import {
   detectIsraelPort,
   extractEtaRaw,
@@ -17,6 +17,7 @@ const INPUT_SELECTORS = [
   'input[placeholder*="container" i]',
   'input[aria-label*="container" i]',
   'input[name*="tracking" i]',
+  'input[name="trackingNumber"]',
   'input[type="search"]',
   'input[type="text"]',
 ]
@@ -36,19 +37,32 @@ export async function scrapeCarrierPage(
   containerNumber: string,
 ): Promise<CarrierScrapeOutcome> {
   try {
-    await page.goto(carrier.trackingUrl, {
+    const url = resolveTrackUrl(carrier, containerNumber)
+    const usedDirect = url !== carrier.trackingUrl
+
+    await page.goto(url, {
       waitUntil: 'domcontentloaded',
-      timeout: 45000,
+      timeout: 12000,
     })
-    await page.waitForTimeout(1200)
+
+    // Brief settle only — avoid long fixed sleeps / networkidle
+    await page.waitForTimeout(usedDirect ? 400 : 600)
 
     const bodyEarly = await page.locator('body').innerText().catch(() => '')
     if (pageLooksBlocked(bodyEarly)) {
       return { status: 'blocked', details: 'Blocked on landing page' }
     }
 
+    // Direct URL may already show results
+    if (usedDirect && looksLikeResult(bodyEarly, containerNumber)) {
+      return buildFound(carrier, containerNumber, bodyEarly)
+    }
+
     const filled = await fillContainerInput(page, containerNumber)
     if (!filled) {
+      if (looksLikeResult(bodyEarly, containerNumber)) {
+        return buildFound(carrier, containerNumber, bodyEarly)
+      }
       return {
         status: 'error',
         details: 'Could not locate container input on tracking page',
@@ -56,50 +70,24 @@ export async function scrapeCarrierPage(
     }
 
     await submitSearch(page)
-    await page.waitForTimeout(2500)
-    await page.waitForLoadState('networkidle', { timeout: 15000 }).catch(() => undefined)
+    await page
+      .waitForLoadState('domcontentloaded', { timeout: 8000 })
+      .catch(() => undefined)
+    await page.waitForTimeout(700)
 
     const text = await page.locator('body').innerText()
 
     if (pageLooksBlocked(text)) {
       return { status: 'blocked', details: 'Blocked after submit' }
     }
-    if (pageLooksNotFound(text) || !text.toUpperCase().includes(containerNumber.slice(0, 4))) {
-      // Some sites hide the number; still try parse if ETA-like content exists
-      const etaProbe = extractEtaRaw(text)
-      if (!etaProbe && pageLooksNotFound(text)) {
-        return { status: 'not_found' }
-      }
-      if (!etaProbe && !/\beta\b|arrival|vessel|voyage|port/i.test(text)) {
-        return { status: 'not_found' }
-      }
+    if (pageLooksNotFound(text)) {
+      return { status: 'not_found' }
     }
-
-    const etaRaw = extractEtaRaw(text)
-    const ports = detectIsraelPort(text)
-    const vessel = extractVessel(text)
-    const status = extractStatus(text)
-
-    if (!etaRaw && status === 'Unknown' && ports.israelPort === 'Unknown') {
+    if (!looksLikeResult(text, containerNumber)) {
       return { status: 'not_found' }
     }
 
-    return {
-      status: 'found',
-      data: {
-        containerNumber,
-        carrierId: carrier.id,
-        carrierName: carrier.name,
-        status,
-        destinationPort: ports.destinationPort,
-        israelPort: ports.israelPort,
-        eta: parseLooseDate(etaRaw),
-        etaRaw,
-        vesselName: vessel,
-        retrievedAt: new Date().toISOString(),
-        source: 'scrape',
-      },
-    }
+    return buildFound(carrier, containerNumber, text)
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)
     if (/timeout/i.test(message)) {
@@ -109,14 +97,57 @@ export async function scrapeCarrierPage(
   }
 }
 
-async function fillContainerInput(page: Page, containerNumber: string): Promise<boolean> {
+function looksLikeResult(text: string, containerNumber: string): boolean {
+  const etaProbe = extractEtaRaw(text)
+  if (etaProbe) return true
+  if (pageLooksNotFound(text)) return false
+  const hasNumber = text.toUpperCase().includes(containerNumber.slice(0, 4))
+  const hasTrackingWords = /\beta\b|arrival|vessel|voyage|port|in transit|discharged/i.test(
+    text,
+  )
+  return hasNumber && hasTrackingWords
+}
+
+function buildFound(
+  carrier: Carrier,
+  containerNumber: string,
+  text: string,
+): CarrierScrapeOutcome {
+  const etaRaw = extractEtaRaw(text)
+  const ports = detectIsraelPort(text)
+  const status = extractStatus(text)
+
+  if (!etaRaw && status === 'Unknown' && ports.israelPort === 'Unknown') {
+    return { status: 'not_found' }
+  }
+
+  return {
+    status: 'found',
+    data: {
+      containerNumber,
+      carrierId: carrier.id,
+      carrierName: carrier.name,
+      status,
+      destinationPort: ports.destinationPort,
+      israelPort: ports.israelPort,
+      eta: parseLooseDate(etaRaw),
+      etaRaw,
+      vesselName: extractVessel(text),
+      retrievedAt: new Date().toISOString(),
+      source: 'scrape',
+    },
+  }
+}
+
+async function fillContainerInput(
+  page: Page,
+  containerNumber: string,
+): Promise<boolean> {
   for (const selector of INPUT_SELECTORS) {
     const locator = page.locator(selector).first()
-    if ((await locator.count()) === 0) continue
+    if ((await locator.count().catch(() => 0)) === 0) continue
     if (!(await locator.isVisible().catch(() => false))) continue
-    await locator.click({ timeout: 2000 }).catch(() => undefined)
-    await locator.fill('')
-    await locator.fill(containerNumber)
+    await locator.fill(containerNumber, { timeout: 1500 }).catch(() => undefined)
     return true
   }
   return false
@@ -125,9 +156,9 @@ async function fillContainerInput(page: Page, containerNumber: string): Promise<
 async function submitSearch(page: Page): Promise<void> {
   for (const selector of SUBMIT_SELECTORS) {
     const locator = page.locator(selector).first()
-    if ((await locator.count()) === 0) continue
+    if ((await locator.count().catch(() => 0)) === 0) continue
     if (!(await locator.isVisible().catch(() => false))) continue
-    await locator.click({ timeout: 3000 })
+    await locator.click({ timeout: 2000 })
     return
   }
   await page.keyboard.press('Enter')

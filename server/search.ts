@@ -9,14 +9,12 @@ import { scrapeCarrier } from './scrapers/index.js'
 import type { ScrapeResult, SearchEvent } from './types.js'
 
 const THROTTLE_MS = Number(
-  process.env.SCRAPE_THROTTLE_MS ??
-    (process.env.VERCEL ? 400 : 1500),
+  process.env.SCRAPE_THROTTLE_MS ?? (process.env.VERCEL ? 0 : 200),
 )
+const CONCURRENCY = Number(process.env.SCRAPE_CONCURRENCY ?? 3)
 
 /**
- * Multi-carrier search using browser scraping only (no carrier APIs).
- * 1) Prefix carriers first
- * 2) Fan-out across remaining lines
+ * Multi-carrier search with parallel batches (local SSE / multi mode).
  */
 export async function* searchAcrossCarriers(
   containerNumber: string,
@@ -37,31 +35,25 @@ export async function* searchAcrossCarriers(
   })
 
   if (primary.length > 0) {
-    yield emitProgress(
-      'prefix',
-      primary.map((c) => c.name).join(', '),
-    )
-
-    for (const carrier of primary) {
-      yield emitProgress('prefix', carrier.name)
-      const hit = await runOne(carrier, containerNumber, checked)
-      if (hit) {
-        yield emitProgress('done')
-        yield {
-          type: 'result',
-          ok: true,
-          data: withMeta(hit, checked, true, 'prefix'),
-        }
-        return
+    yield emitProgress('prefix', primary.map((c) => c.name).join(', '))
+    const hit = await runBatch(primary, containerNumber, checked)
+    if (hit) {
+      yield emitProgress('done')
+      yield {
+        type: 'result',
+        ok: true,
+        data: withMeta(hit, checked, true, 'prefix'),
       }
-      await sleep(THROTTLE_MS)
+      return
     }
+    if (THROTTLE_MS) await sleep(THROTTLE_MS)
   }
 
   const remaining = order.filter((c) => !checked.includes(c.id))
-  for (const carrier of remaining) {
-    yield emitProgress('fanout', carrier.name)
-    const hit = await runOne(carrier, containerNumber, checked)
+  for (let i = 0; i < remaining.length; i += CONCURRENCY) {
+    const batch = remaining.slice(i, i + CONCURRENCY)
+    yield emitProgress('fanout', batch.map((c) => c.name).join(', '))
+    const hit = await runBatch(batch, containerNumber, checked)
     if (hit) {
       yield emitProgress('done')
       yield {
@@ -71,7 +63,7 @@ export async function* searchAcrossCarriers(
       }
       return
     }
-    await sleep(THROTTLE_MS)
+    if (THROTTLE_MS) await sleep(THROTTLE_MS)
   }
 
   yield emitProgress('done')
@@ -80,24 +72,26 @@ export async function* searchAcrossCarriers(
     ok: false,
     error: {
       code: 'NOT_FOUND',
-      message: `מספר המכולה לא נמצא לאחר סריקת דפי המעקב של החברות (${order
+      message: `מספר המכולה לא נמצא לאחר סריקה מקבילית של החברות (${order
         .map((c) => c.name)
         .join(', ')}). נא לוודא את המספר.`,
     },
   }
 }
 
-async function runOne(
-  carrier: Carrier,
+async function runBatch(
+  carriers: Carrier[],
   containerNumber: string,
   checked: CarrierId[],
 ): Promise<Omit<ScrapeResult, 'searchMeta'> | null> {
-  checked.push(carrier.id)
-  const outcome = await scrapeCarrier(carrier, containerNumber)
-
-  if (outcome.status === 'found') return outcome.data
-  // blocked/error on one carrier: continue to next (do not abort whole search)
-  return null
+  const outcomes = await Promise.all(
+    carriers.map(async (carrier) => {
+      checked.push(carrier.id)
+      const outcome = await scrapeCarrier(carrier, containerNumber)
+      return outcome.status === 'found' ? outcome.data : null
+    }),
+  )
+  return outcomes.find((r) => r !== null) ?? null
 }
 
 function withMeta(
