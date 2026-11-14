@@ -97,6 +97,14 @@ body {
   font-weight: 600;
 }
 
+.health-ok {
+  color: var(--ok);
+}
+
+.health-bad {
+  color: var(--danger);
+}
+
 .carriers {
   animation: rise 0.75s ease 0.05s both;
 }

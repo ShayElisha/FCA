@@ -38,10 +38,8 @@ const SCRAPER_BASE =
 const CONCURRENCY = Number(import.meta.env.VITE_SCRAPE_CONCURRENCY ?? 4)
 
 const BLOCKED_MSG =
-  'אתרי הספנות חסמו את Chromium של Vercel (הגנת בוטים / Akamai). ' +
-  'לא ניתן לעקוף את ההגנה מכאן. ' +
-  'כדי שזה יעבוד: הריצו שרת סריקה עם Chrome (npm run dev או Docker) ' +
-  'והגדירו ב־Vercel את SCRAPER_UPSTREAM_URL לכתובת השרת.'
+  'הסריקה נחסמה כרגע. ודאו ש־npm run dev ו־ngrok רצים, רעננו את העמוד, ונסו שוב. ' +
+  'אם זה ממשיך — בדקו ב־/api/health ש־readyForMsc=true.'
 
 /**
  * Multi-carrier search with accurate blocked vs not-found handling.
@@ -189,12 +187,16 @@ async function raceCarriers(
 async function scrapeCarrier(
   containerNumber: string,
   carrierId: CarrierId,
+  attempt = 1,
 ): Promise<ScrapeOutcome> {
   let response: Response
   try {
     response = await fetch(`${SCRAPER_BASE}/api/track`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'Cache-Control': 'no-store',
+      },
       body: JSON.stringify({ containerNumber, carrierId }),
     })
   } catch {
@@ -202,7 +204,7 @@ async function scrapeCarrier(
       trackingError: {
         code: 'PROVIDER_UNAVAILABLE',
         message:
-          'שרת הסריקה לא זמין. הריצו מקומית: npm run dev (עם Google Chrome מותקן).',
+          'שרת הסריקה לא זמין. השאירו npm run dev + ngrok דולקים.',
       } satisfies TrackingError,
     })
   }
@@ -211,18 +213,28 @@ async function scrapeCarrier(
     throw Object.assign(new Error('track endpoint missing'), {
       trackingError: {
         code: 'PROVIDER_UNAVAILABLE',
-        message: `נתיב /api/track החזיר ${response.status}. רעננו את העמוד או הריצו npm run dev.`,
+        message: `נתיב /api/track החזיר ${response.status}. רעננו קשיח את העמוד.`,
       } satisfies TrackingError,
     })
   }
 
-  const json = (await response.json()) as ScrapeApiResponse
+  let json: ScrapeApiResponse
+  try {
+    json = (await response.json()) as ScrapeApiResponse
+  } catch {
+    return { kind: 'error', details: 'Invalid JSON from /api/track' }
+  }
 
   if (!json.ok) {
     if (json.error.code === 'INVALID_CONTAINER_NUMBER') {
       throw Object.assign(new Error(json.error.message), {
         trackingError: json.error,
       })
+    }
+    // Upstream Chrome host temporarily down
+    if (json.error.code === 'PROVIDER_UNAVAILABLE' && attempt < 2) {
+      await delay(1200)
+      return scrapeCarrier(containerNumber, carrierId, attempt + 1)
     }
     return { kind: 'error', details: json.error.message }
   }
@@ -232,14 +244,27 @@ async function scrapeCarrier(
   }
 
   if (json.status === 'blocked') {
+    // One retry — transient Akamai / cold start noise
+    if (attempt < 2) {
+      await delay(1500)
+      return scrapeCarrier(containerNumber, carrierId, attempt + 1)
+    }
     return { kind: 'blocked', details: json.details }
   }
 
   if (json.status === 'error') {
+    if (attempt < 2) {
+      await delay(1000)
+      return scrapeCarrier(containerNumber, carrierId, attempt + 1)
+    }
     return { kind: 'error', details: json.details }
   }
 
   return { kind: 'not_found' }
+}
+
+function delay(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms))
 }
 
 function withMeta(

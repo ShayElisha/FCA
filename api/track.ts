@@ -42,20 +42,36 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   // Avoids Akamai blocking of Vercel serverless Chromium — no bot-bypass tricks.
   const upstream = process.env.SCRAPER_UPSTREAM_URL?.replace(/\/$/, '')
   if (upstream) {
+    // When upstream is configured, NEVER fall back to Vercel Chromium.
     try {
       const proxied = await fetch(`${upstream}/api/track`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          // Free ngrok interstitial bypass for server-to-server calls
           'ngrok-skip-browser-warning': 'true',
         },
         body: JSON.stringify(req.body ?? {}),
+        signal: AbortSignal.timeout(55000),
       })
       const text = await proxied.text()
+      // ngrok free interstitial sometimes returns HTML
+      if (/ngrok|ERR_NGROK|tunnel/i.test(text) && text.trim().startsWith('<')) {
+        res.status(502).json({
+          ok: false,
+          error: {
+            code: 'PROVIDER_UNAVAILABLE',
+            message:
+              'ngrok החזיר דף אזהרה במקום תשובת הסריקה. ודאו שה־tunnel פעיל.',
+          },
+        })
+        return
+      }
+      res.setHeader('Cache-Control', 'no-store')
       res.status(proxied.status)
-      const ct = proxied.headers.get('content-type') || 'application/json'
-      res.setHeader('Content-Type', ct)
+      res.setHeader(
+        'Content-Type',
+        proxied.headers.get('content-type') || 'application/json',
+      )
       res.send(text)
       return
     } catch (error) {
@@ -64,7 +80,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         error: {
           code: 'PROVIDER_UNAVAILABLE',
           message:
-            'שרת הסריקה עם Chrome לא זמין. בדקו את SCRAPER_UPSTREAM_URL.',
+            'שרת הסריקה עם Chrome לא זמין כרגע. השאירו npm run dev + ngrok דולקים.',
           details: error instanceof Error ? error.message : String(error),
         },
       })

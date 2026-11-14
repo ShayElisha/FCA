@@ -1,9 +1,16 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import type { FormEvent } from 'react'
 import { CARRIERS, detectCarriersByOwnerCode } from './carriers'
 import { normalizeContainerNumber, validateContainerNumber } from './iso6346'
 import { trackContainerSafe } from './track'
 import type { ContainerTrackingResult, SearchProgress } from './types'
+
+type HealthState = {
+  readyForMsc: boolean
+  upstreamConfigured: boolean
+  upstreamOk: boolean | null
+  mode: string
+}
 
 export default function App() {
   const [input, setInput] = useState('')
@@ -12,6 +19,33 @@ export default function App() {
   const [apiError, setApiError] = useState<string | null>(null)
   const [result, setResult] = useState<ContainerTrackingResult | null>(null)
   const [progress, setProgress] = useState<SearchProgress | null>(null)
+  const [health, setHealth] = useState<HealthState | null>(null)
+
+  useEffect(() => {
+    let cancelled = false
+    const load = async () => {
+      try {
+        const res = await fetch('/api/health', { cache: 'no-store' })
+        const json = (await res.json()) as HealthState
+        if (!cancelled) setHealth(json)
+      } catch {
+        if (!cancelled) {
+          setHealth({
+            readyForMsc: false,
+            upstreamConfigured: false,
+            upstreamOk: false,
+            mode: 'unreachable',
+          })
+        }
+      }
+    }
+    void load()
+    const id = window.setInterval(load, 15000)
+    return () => {
+      cancelled = true
+      window.clearInterval(id)
+    }
+  }, [])
 
   const liveHint = useMemo(() => {
     const normalized = normalizeContainerNumber(input)
@@ -63,10 +97,20 @@ export default function App() {
         <p className="brand-mark">FCA</p>
         <h1>מעקב מכולות רב־חברתי</h1>
         <p className="lede">
-          הזינו מספר מכולה לחיפוש באתרי המעקב. ל־MSC מומלץ להריץ מקומית עם
-          Google Chrome (<code>npm run dev</code>) — ב־Vercel אתרים רבים חוסמים
-          סריקה אוטומטית.
+          הזינו מספר מכולה לחיפוש באתרי המעקב. הסריקה עוברת דרך שרת Chrome
+          מקומי (ngrok) כדי לעקוף את חסימת Vercel.
         </p>
+        {health && (
+          <p
+            className={
+              health.readyForMsc ? 'hint health-ok' : 'hint health-bad'
+            }
+          >
+            {health.readyForMsc
+              ? 'מחובר לשרת Chrome מקומי — מוכן ל־MSC'
+              : 'לא מחובר לשרת Chrome. הפעילו npm run dev + ngrok ואז רעננו.'}
+          </p>
+        )}
       </header>
 
       <main>
@@ -121,7 +165,8 @@ export default function App() {
 
       <footer>
         <p>
-          MSC על Vercel עלול להיחסם · להרצה אמינה: npm run dev עם Chrome מקומי.
+          שימו לב: npm run dev ו־ngrok חייבים להישאר דולקים כדי שמעקב MSC
+          יעבוד מ־Vercel.
         </p>
       </footer>
     </div>
