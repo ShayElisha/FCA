@@ -1,6 +1,12 @@
 import cors from 'cors'
 import express from 'express'
 import { closeBrowser } from './browser.js'
+import { CARRIERS, type CarrierId } from './carriers.js'
+import {
+  isValidContainer,
+  normalizeContainer,
+  scrapeOneCarrier,
+} from './handlers/scrapeOne.js'
 import { searchAcrossCarriers } from './search.js'
 
 const app = express()
@@ -12,22 +18,76 @@ app.use(express.json())
 app.get('/api/health', (_req, res) => {
   res.json({
     ok: true,
-    mode: 'scrape',
-    message: 'Browser scraping server (no carrier APIs)',
+    mode: 'local-scrape',
+    message: 'Playwright scraping (compatible with Vercel /api/scrape)',
   })
 })
 
 /**
- * SSE stream: progress events + final result.
- * Body: { containerNumber: string }
+ * Single-carrier scrape — same contract as Vercel Serverless `/api/scrape`.
  */
-app.post('/api/track', async (req, res) => {
-  const containerNumber = String(req.body?.containerNumber ?? '')
-    .trim()
-    .toUpperCase()
-    .replace(/[\s-]/g, '')
+app.post('/api/scrape', async (req, res) => {
+  const containerNumber = normalizeContainer(req.body?.containerNumber)
+  const carrierId = String(req.body?.carrierId ?? '') as CarrierId
 
-  if (!/^[A-Z]{3}[UJZ]\d{7}$/.test(containerNumber)) {
+  if (!isValidContainer(containerNumber)) {
+    res.status(400).json({
+      ok: false,
+      error: {
+        code: 'INVALID_CONTAINER_NUMBER',
+        message:
+          'מספר המכולה אינו תקין לפי תקן ISO 6346. הפורמט הנדרש: 4 אותיות ו-7 ספרות.',
+      },
+    })
+    return
+  }
+
+  if (!CARRIERS.some((c) => c.id === carrierId)) {
+    res.status(400).json({
+      ok: false,
+      error: {
+        code: 'INVALID_CARRIER',
+        message: 'חברת ספנות לא נתמכת.',
+      },
+    })
+    return
+  }
+
+  try {
+    const outcome = await scrapeOneCarrier(containerNumber, carrierId)
+
+    if (outcome.status === 'found') {
+      res.status(200).json({ ok: true, status: 'found', data: outcome.data })
+      return
+    }
+
+    if (outcome.status === 'blocked' || outcome.status === 'error') {
+      res.status(200).json({
+        ok: true,
+        status: outcome.status,
+        details: outcome.details,
+      })
+      return
+    }
+
+    res.status(200).json({ ok: true, status: 'not_found' })
+  } catch (error) {
+    res.status(500).json({
+      ok: false,
+      error: {
+        code: 'INTERNAL_ERROR',
+        message: 'אירעה תקלה בסריקת האתר. נסו שוב.',
+        details: error instanceof Error ? error.message : String(error),
+      },
+    })
+  }
+})
+
+/** Optional SSE multi-carrier (local helper). Frontend uses /api/scrape. */
+app.post('/api/track', async (req, res) => {
+  const containerNumber = normalizeContainer(req.body?.containerNumber)
+
+  if (!isValidContainer(containerNumber)) {
     res.status(400).json({
       ok: false,
       error: {
@@ -70,7 +130,7 @@ app.post('/api/track', async (req, res) => {
 
 const server = app.listen(PORT, () => {
   console.log(`FCA scraper server on http://localhost:${PORT}`)
-  console.log('Mode: Playwright page scraping (no carrier APIs)')
+  console.log('Endpoints: POST /api/scrape , POST /api/track')
 })
 
 async function shutdown() {

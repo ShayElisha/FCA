@@ -1,4 +1,4 @@
-import type { Page } from 'playwright'
+import type { Page } from 'playwright-core'
 import type { Carrier } from '../carriers.js'
 import {
   detectIsraelPort,

@@ -1,22 +1,35 @@
-import { chromium, type Browser, type Page } from 'playwright'
+import type { Browser, Page } from 'playwright-core'
 
-let browserPromise: Promise<Browser> | null = null
+const isServerless =
+  Boolean(process.env.VERCEL) ||
+  Boolean(process.env.AWS_LAMBDA_FUNCTION_NAME) ||
+  process.env.SCRAPE_MODE === 'serverless'
 
-export async function getBrowser(): Promise<Browser> {
-  if (!browserPromise) {
-    browserPromise = chromium.launch({
+async function launchBrowser(): Promise<Browser> {
+  if (isServerless) {
+    const chromium = (await import('@sparticuz/chromium')).default
+    const { chromium: playwright } = await import('playwright-core')
+
+    return playwright.launch({
+      args: [...chromium.args, '--disable-gpu'],
+      executablePath: await chromium.executablePath(),
       headless: true,
-      args: ['--disable-blink-features=AutomationControlled'],
     })
   }
-  return browserPromise
+
+  // Local / long-running Node server: use full Playwright browsers
+  const { chromium } = await import('playwright')
+  return chromium.launch({
+    headless: true,
+    args: ['--disable-blink-features=AutomationControlled'],
+  })
 }
 
 export async function withPage<T>(
   fn: (page: Page) => Promise<T>,
-  timeoutMs = 45000,
+  timeoutMs = 35000,
 ): Promise<T> {
-  const browser = await getBrowser()
+  const browser = await launchBrowser()
   const context = await browser.newContext({
     locale: 'en-US',
     userAgent:
@@ -29,13 +42,11 @@ export async function withPage<T>(
   try {
     return await fn(page)
   } finally {
-    await context.close()
+    await context.close().catch(() => undefined)
+    await browser.close().catch(() => undefined)
   }
 }
 
 export async function closeBrowser(): Promise<void> {
-  if (!browserPromise) return
-  const browser = await browserPromise
-  browserPromise = null
-  await browser.close()
+  // Serverless launches a fresh browser per request; nothing to keep warm.
 }

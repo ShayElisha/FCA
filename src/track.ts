@@ -1,3 +1,9 @@
+import {
+  CARRIERS,
+  detectCarriersByOwnerCode,
+  getSearchOrder,
+  type CarrierId,
+} from './carriers'
 import type {
   ContainerTrackingResult,
   SearchProgress,
@@ -10,99 +16,162 @@ export type TrackResponse =
 
 export type ProgressCallback = (progress: SearchProgress) => void
 
+type ScrapeApiResponse =
+  | {
+      ok: true
+      status: 'found'
+      data: Omit<ContainerTrackingResult, 'searchMeta'>
+    }
+  | { ok: true; status: 'not_found' | 'blocked' | 'error'; details?: string }
+  | { ok: false; error: TrackingError }
+
 const SCRAPER_BASE =
   import.meta.env.VITE_SCRAPER_URL?.replace(/\/$/, '') || ''
 
 /**
- * Calls the local Playwright scraping server (SSE).
- * No third-party / carrier APIs — only browser scraping of public track pages.
+ * Multi-carrier search via Vercel Serverless `/api/scrape` (one carrier per invocation).
+ * No carrier APIs — Playwright page scraping only.
  */
 export async function trackContainer(
   containerNumber: string,
   onProgress?: ProgressCallback,
 ): Promise<TrackResponse> {
-  let response: Response
-  try {
-    response = await fetch(`${SCRAPER_BASE}/api/track`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Accept: 'text/event-stream' },
-      body: JSON.stringify({ containerNumber }),
+  const primary = detectCarriersByOwnerCode(containerNumber)
+  const order = getSearchOrder(containerNumber)
+  const checked: CarrierId[] = []
+
+  const report = (
+    phase: SearchProgress['phase'],
+    currentCarrierName?: string,
+  ) => {
+    onProgress?.({
+      phase,
+      currentCarrierName,
+      checked: checked.map((id) => CARRIERS.find((c) => c.id === id)!.name),
+      total: order.length,
     })
-  } catch {
-    return {
-      ok: false,
-      error: {
-        code: 'PROVIDER_UNAVAILABLE',
-        message:
-          'שרת הסריקה לא זמין. הפעילו אותו מקומית עם npm run server (Playwright — בלי API של חברות ספנות).',
-      },
-    }
   }
 
-  if (!response.ok || !response.body) {
-    if (response.headers.get('content-type')?.includes('application/json')) {
-      const json = (await response.json()) as TrackResponse
-      return json
-    }
-    return {
-      ok: false,
-      error: {
-        code: 'PROVIDER_UNAVAILABLE',
-        message: 'שרת הסריקה החזיר שגיאה. בדקו שהוא רץ (npm run server).',
-      },
-    }
-  }
-
-  const reader = response.body.getReader()
-  const decoder = new TextDecoder()
-  let buffer = ''
-  let finalResult: TrackResponse | null = null
-
-  while (true) {
-    const { done, value } = await reader.read()
-    if (done) break
-    buffer += decoder.decode(value, { stream: true })
-
-    const chunks = buffer.split('\n\n')
-    buffer = chunks.pop() ?? ''
-
-    for (const chunk of chunks) {
-      const line = chunk
-        .split('\n')
-        .find((l) => l.startsWith('data:'))
-      if (!line) continue
-      const payload = JSON.parse(line.slice(5).trim()) as
-        | {
-            type: 'progress'
-            phase: SearchProgress['phase']
-            currentCarrierName?: string
-            checked: string[]
-            total: number
-          }
-        | ({ type: 'result' } & TrackResponse)
-
-      if (payload.type === 'progress') {
-        onProgress?.({
-          phase: payload.phase,
-          currentCarrierName: payload.currentCarrierName,
-          checked: payload.checked,
-          total: payload.total,
-        })
-      } else if (payload.type === 'result') {
-        finalResult = payload.ok
-          ? { ok: true, data: payload.data }
-          : { ok: false, error: payload.error }
+  if (primary.length > 0) {
+    report('prefix', primary.map((c) => c.name).join(', '))
+    for (const carrier of primary) {
+      report('prefix', carrier.name)
+      const hit = await scrapeCarrier(containerNumber, carrier.id, checked)
+      if (hit) {
+        report('done')
+        return {
+          ok: true,
+          data: withMeta(hit, checked, true, 'prefix'),
+        }
       }
     }
   }
 
-  return (
-    finalResult ?? {
+  const remaining = order.filter((c) => !checked.includes(c.id))
+  for (const carrier of remaining) {
+    report('fanout', carrier.name)
+    const hit = await scrapeCarrier(containerNumber, carrier.id, checked)
+    if (hit) {
+      report('done')
+      return {
+        ok: true,
+        data: withMeta(hit, checked, primary.length > 0, 'fanout'),
+      }
+    }
+  }
+
+  report('done')
+  return {
+    ok: false,
+    error: {
+      code: 'NOT_FOUND',
+      message: `מספר המכולה לא נמצא לאחר סריקת דפי המעקב של החברות (${order
+        .map((c) => c.name)
+        .join(', ')}). נא לוודא את המספר.`,
+    },
+  }
+}
+
+async function scrapeCarrier(
+  containerNumber: string,
+  carrierId: CarrierId,
+  checked: CarrierId[],
+): Promise<Omit<ContainerTrackingResult, 'searchMeta'> | null> {
+  checked.push(carrierId)
+
+  let response: Response
+  try {
+    response = await fetch(`${SCRAPER_BASE}/api/scrape`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ containerNumber, carrierId }),
+    })
+  } catch {
+    throw Object.assign(new Error('scraper unavailable'), {
+      trackingError: {
+        code: 'PROVIDER_UNAVAILABLE',
+        message:
+          'פונקציית הסריקה לא זמינה. בדקו שהפרויקט רץ על Vercel Serverless או דרך npm run server.',
+      } satisfies TrackingError,
+    })
+  }
+
+  const json = (await response.json()) as ScrapeApiResponse
+
+  if (!json.ok) {
+    // Soft-fail per carrier except hard invalid input
+    if (json.error.code === 'INVALID_CONTAINER_NUMBER') {
+      throw Object.assign(new Error(json.error.message), {
+        trackingError: json.error,
+      })
+    }
+    return null
+  }
+
+  if (json.status === 'found') {
+    return {
+      ...json.data,
+      source: 'scrape',
+    }
+  }
+
+  return null
+}
+
+function withMeta(
+  data: Omit<ContainerTrackingResult, 'searchMeta'>,
+  checked: CarrierId[],
+  detectedFromPrefix: boolean,
+  strategy: 'prefix' | 'fanout',
+): ContainerTrackingResult {
+  return {
+    ...data,
+    source: 'scrape',
+    searchMeta: {
+      detectedFromPrefix,
+      searchedCarrierIds: [...checked],
+      strategy,
+    },
+  }
+}
+
+/** Wrap trackContainer so App can show typed errors from throws */
+export async function trackContainerSafe(
+  containerNumber: string,
+  onProgress?: ProgressCallback,
+): Promise<TrackResponse> {
+  try {
+    return await trackContainer(containerNumber, onProgress)
+  } catch (error) {
+    const trackingError = (error as { trackingError?: TrackingError })
+      .trackingError
+    if (trackingError) return { ok: false, error: trackingError }
+    return {
       ok: false,
       error: {
         code: 'INTERNAL_ERROR',
-        message: 'הסריקה הסתיימה ללא תוצאה. נסו שוב.',
+        message: 'אירעה תקלה פנימית. נסו שוב.',
       },
     }
-  )
+  }
 }

@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react'
 import type { FormEvent } from 'react'
 import { CARRIERS, detectCarriersByOwnerCode } from './carriers'
 import { normalizeContainerNumber, validateContainerNumber } from './iso6346'
-import { trackContainer } from './track'
+import { trackContainerSafe } from './track'
 import type { ContainerTrackingResult, SearchProgress } from './types'
 
 export default function App() {
@@ -39,7 +39,7 @@ export default function App() {
     setLoading(true)
 
     try {
-      const response = await trackContainer(
+      const response = await trackContainerSafe(
         validation.containerNumber,
         setProgress,
       )
@@ -63,8 +63,8 @@ export default function App() {
         <p className="brand-mark">FCA</p>
         <h1>מעקב מכולות רב־חברתי</h1>
         <p className="lede">
-          הזינו מספר מכולה — המערכת סורקת ישירות את אתרי המעקב של חברות
-          הספנות (דפדפן אוטומטי), בלי חיבור ל־API שלהן, ומציגה ETA לישראל.
+          הזינו מספר מכולה — המערכת סורקת אתרי מעקב של חברות הספנות דרך
+          Vercel Serverless (Playwright), בלי API של החברות, ומציגה ETA לישראל.
         </p>
       </header>
 
@@ -120,8 +120,7 @@ export default function App() {
 
       <footer>
         <p>
-          מקור הנתונים: סריקת דפי Track &amp; Trace הציבוריים באמצעות Playwright.
-          אין שימוש ב־API של חברות הספנות.
+          סריקה ב־Serverless (פונקציה לכל חברה) · Playwright · בלי API של חברות הספנות.
         </p>
       </footer>
     </div>

@@ -1,39 +1,28 @@
-# FCA — מעקב מכולות רב־חברתי (Scraping)
+# FCA — מעקב מכולות (Vercel Serverless + Scraping)
 
-מערכת שמקבלת מספר מכולה, מזהה חברת ספנות לפי קידומת ISO 6346, וסורקת **ישירות את דפי ה-Track & Trace** של החברות באמצעות Playwright.
-
+סריקת דפי Track & Trace של חברות ספנות באמצעות **Playwright על Vercel Serverless**.  
 **אין שימוש ב־API של חברות הספנות.**
+
+## איך זה רץ ב-Vercel
+
+1. ה־UI קורא ל־`POST /api/scrape` לכל חברה בנפרד
+2. כל קריאה היא Serverless Function עם Chromium (`@sparticuz/chromium`)
+3. אם לא נמצא — ממשיכים לחברה הבאה
 
 ## הרצה מקומית
 
 ```bash
 npm install
+npx playwright install chromium
 npm run dev
 ```
 
 - UI: http://localhost:5173  
-- שרת סריקה: http://localhost:8787  
+- שרת תואם ל־`/api/scrape`: http://localhost:8787  
 
-## איך זה עובד
+## Production
 
-1. אימות מספר מכולה (ISO 6346)
-2. זיהוי חברה לפי קידומת (למשל MSC / ZIM / MAE…)
-3. סריקת דף המעקב של החברה בדפדפן Headless
-4. אם לא נמצא — מעבר לשאר החברות (עם השהייה בין בקשות)
-5. הצגת סטטוס + ETA לישראל (אשדוד / חיפה) כשזמין בעמוד
+https://fca-ruby.vercel.app
 
-## Vercel
-
-הממשק מפורסם כ־Vite סטטי.  
-סריקת Playwright **דורשת שרת Node מקומי/VPS** — לא רצה כראוי על Hosting סטטי של Vercel.
-
-להפעיל מעקב אמיתי: הריצו `npm run server` בסביבה עם Chromium, וחברו את ה־UI עם:
-
-```bash
-VITE_SCRAPER_URL=https://YOUR-SCRAPER-HOST
-```
-
-## הערות
-
-- אתרים גדולים עלולים לחסום בוטים / להציג CAPTCHA — במקרה כזה החברה נדלגת והחיפוש ממשיך.
-- יש לשמור על שימוש הוגן ועל תנאי השימוש של כל אתר מעקב.
+דורש תוכנית שמאפשרת `maxDuration` מספיק לסריקת דף (מוגדר 60 שנ' לפונקציה).  
+זיכרון מומלץ: 1024MB לפונקציית הסריקה.
