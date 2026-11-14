@@ -1,0 +1,122 @@
+🚀 Starting comprehensive carrier tests...
+============================================================
+
+📋 Part 1: Carriers with Dedicated Scrapers
+------------------------------------------------------------
+
+🔍 Testing MSC with container MSCU6789016...
+🔍 MSC: not_found (18441ms)
+   ℹ️  Not found: Container number not in system (expected for test numbers)
+
+🔍 Testing COSCO with container COSU1234567...
+🔍 COSCO: not_found (35715ms)
+   ℹ️  Not found: Container number not in system (expected for test numbers)
+
+🔍 Testing ZIM with container ZIMU1234567...
+🔍 ZIM: not_found (19090ms)
+   ℹ️  Not found: Container number not in system (expected for test numbers)
+
+🔍 Testing MAERSK with container MAEU1234567...
+🔍 MAERSK: not_found (31090ms)
+   ℹ️  Not found: Container number not in system (expected for test numbers)
+
+🔍 Testing HAPAG_LLOYD with container HLCU1234567...
+🚫 HAPAG_LLOYD: blocked (4193ms)
+   ⚠️  Blocked: Hapag-Lloyd blocked automated browser
+
+🔍 Testing CMA_CGM with container CMDU1234567...
+🔍 CMA_CGM: not_found (31618ms)
+   ℹ️  Not found: Container number not in system (expected for test numbers)
+
+📋 Part 2: Carriers with Generic Scraper
+------------------------------------------------------------
+
+🔍 Testing ONE with container ONEY1234567...
+❌ ONE: error (5309ms)
+   ⚠️  Error: Could not locate container input on ONE tracking page
+
+🔍 Testing EVERGREEN with container EMCU1234567...
+❌ EVERGREEN: error (5137ms)
+   ⚠️  Error: Could not locate container input on Evergreen tracking page
+
+🔍 Testing OOCL with container OOLU1234567...
+❌ OOCL: error (3632ms)
+   ⚠️  Error: Could not locate container input on tracking page
+
+🔍 Testing HMM with container HMMU1234567...
+🔍 HMM: not_found (8606ms)
+   ℹ️  Not found: Container number not in system (expected for test numbers)
+
+🔍 Testing YANG_MING with container YMLU1234567...
+🚫 YANG_MING: blocked (2967ms)
+   ⚠️  Blocked: Blocked on landing page
+
+🔍 Testing PIL with container PCIU1234567...
+🔍 PIL: not_found (9279ms)
+   ℹ️  Not found: Container number not in system (expected for test numbers)
+
+🔍 Testing WAN_HAI with container WHLU1234567...
+❌ WAN_HAI: error (3827ms)
+   ⚠️  Error: Could not locate container input on tracking page
+
+
+============================================================
+📊 TEST SUMMARY
+============================================================
+
+📈 Results:
+   Total Carriers Tested: 13
+   ✅ Found: 0
+   🔍 Not Found: 7 (expected for test container numbers)
+   🚫 Blocked: 2
+   ❌ Errors: 4
+   ⏱️  Average Duration: 13762ms
+
+🎯 Success Rate: 53.8%
+   (Successful = found OR not_found, Failed = blocked OR error)
+
+📋 Detailed Results:
+------------------------------------------------------------
+
+Dedicated Scrapers:
+  🔍 MSC             | not_found  | 18441ms
+  🔍 COSCO           | not_found  | 35715ms
+  🔍 ZIM             | not_found  | 19090ms
+  🔍 MAERSK          | not_found  | 31090ms
+  🚫 HAPAG_LLOYD     | blocked    | 4193ms
+  🔍 CMA_CGM         | not_found  | 31618ms
+
+Generic Scraper:
+  ❌ ONE             | error      | 5309ms
+  ❌ EVERGREEN       | error      | 5137ms
+  ❌ OOCL            | error      | 3632ms
+  🔍 HMM             | not_found  | 8606ms
+  🚫 YANG_MING       | blocked    | 2967ms
+  🔍 PIL             | not_found  | 9279ms
+  ❌ WAN_HAI         | error      | 3827ms
+
+⚠️  WARNING: 2 carrier(s) blocked the request
+   Blocked carriers:
+   - HAPAG_LLOYD: Hapag-Lloyd blocked automated browser
+   - YANG_MING: Blocked on landing page
+
+   Recommendations:
+   1. Make sure you're using real Chrome (SCRAPE_MODE=chrome)
+   2. Increase timeouts if needed
+   3. Test with real container numbers from these carriers
+   4. Consider adding more delays in the scraper
+
+❌ ERRORS: 4 carrier(s) had errors
+   Error carriers:
+   - ONE: Could not locate container input on ONE tracking page
+   - EVERGREEN: Could not locate container input on Evergreen tracking page
+   - OOCL: Could not locate container input on tracking page
+   - WAN_HAI: Could not locate container input on tracking page
+
+============================================================
+✨ Test completed!
+============================================================
+
+💾 Saving results to test-results.json...
+Fatal error: ReferenceError: Bun is not defined
+    at testAllCarriers (/workspace/scripts/test-all-carriers.mts:225:3)

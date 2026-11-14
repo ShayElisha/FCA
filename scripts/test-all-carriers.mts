@@ -222,7 +222,8 @@ async function testAllCarriers() {
   }
   
   console.log(`\n💾 Saving results to test-results.json...`)
-  await Bun.write('test-results.json', JSON.stringify(resultsJson, null, 2))
+  const fs = await import('fs/promises')
+  await fs.writeFile('test-results.json', JSON.stringify(resultsJson, null, 2))
   console.log(`✅ Results saved!`)
 }
 
