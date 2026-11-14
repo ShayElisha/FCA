@@ -8,6 +8,8 @@ import { scrapeZim } from './zim.js'
 import { scrapeMaersk } from './maersk.js'
 import { scrapeHapag } from './hapag.js'
 import { scrapeCma } from './cma.js'
+import { scrapeOne } from './one.js'
+import { scrapeEvergreen } from './evergreen.js'
 
 export async function scrapeCarrier(
   carrier: Carrier,
@@ -31,6 +33,12 @@ export async function scrapeCarrier(
     }
     if (carrier.id === 'cma_cgm') {
       return scrapeCma(page, carrier, containerNumber)
+    }
+    if (carrier.id === 'one') {
+      return scrapeOne(page, carrier, containerNumber)
+    }
+    if (carrier.id === 'evergreen') {
+      return scrapeEvergreen(page, carrier, containerNumber)
     }
     return scrapeCarrierPage(page, carrier, containerNumber)
   })

@@ -12,15 +12,52 @@ import {
 import type { CarrierScrapeOutcome } from '../types.js'
 
 const INPUT_SELECTORS = [
+  // Container-specific
   'input[name*="container" i]',
   'input[id*="container" i]',
   'input[placeholder*="container" i]',
   'input[aria-label*="container" i]',
+  'input[class*="container" i]',
+  'input[data-test*="container" i]',
+  
+  // Tracking-specific
   'input[name*="tracking" i]',
+  'input[id*="tracking" i]',
+  'input[placeholder*="tracking" i]',
+  'input[aria-label*="tracking" i]',
   'input[name="trackingNumber"]',
+  'input[id="trackingNumber"]',
+  'input[name="track"]',
+  'input[id="track"]',
+  
+  // Shipment/cargo
+  'input[name*="shipment" i]',
+  'input[id*="shipment" i]',
+  'input[placeholder*="shipment" i]',
+  'input[name*="cargo" i]',
+  'input[id*="cargo" i]',
+  
+  // Reference/BL
+  'input[name*="reference" i]',
+  'input[id*="reference" i]',
+  'input[placeholder*="reference" i]',
+  'input[name*="bill" i]',
+  'input[name*="bl" i]',
+  
+  // Number fields
+  'input[placeholder*="number" i]',
+  'input[aria-label*="number" i]',
+  
+  // Framework-specific
   'input.ant-input',
+  'input[class*="MuiInput"]',
+  'input[class*="form-control"]',
+  'input[class*="input"]',
+  
+  // Generic
   'input[type="search"]',
   'input[type="text"]',
+  'input:not([type])',
 ]
 
 function randomDelay(min: number, max: number): Promise<void> {

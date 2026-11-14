@@ -49,34 +49,68 @@ async function launchBrowser(): Promise<Browser> {
   const { chromium } = await import('playwright')
 
   const chromeArgs = [
+    // Core anti-detection
     '--disable-blink-features=AutomationControlled',
+    '--exclude-switches=enable-automation',
+    '--disable-automation',
+    
+    // Security (required for containers)
     '--no-sandbox',
-    '--disable-dev-shm-usage',
-    '--disable-gpu',
-    '--disable-web-security',
-    '--disable-features=IsolateOrigins,site-per-process',
     '--disable-setuid-sandbox',
+    '--disable-dev-shm-usage',
+    
+    // Rendering
+    '--disable-gpu',
+    '--disable-software-rasterizer',
+    '--disable-dev-tools',
     '--window-size=1920,1080',
+    '--window-position=0,0',
+    '--force-color-profile=srgb',
+    '--force-device-scale-factor=1',
+    
+    // Features to disable
+    '--disable-web-security',
+    '--disable-features=IsolateOrigins,site-per-process,TranslateUI,BlinkGenPropertyTrees',
     '--disable-infobars',
     '--disable-notifications',
+    '--disable-extensions',
+    '--disable-component-extensions-with-background-pages',
+    '--disable-default-apps',
     '--disable-background-timer-throttling',
     '--disable-backgrounding-occluded-windows',
+    '--disable-background-networking',
     '--disable-breakpad',
-    '--disable-component-extensions-with-background-pages',
-    '--disable-extensions',
-    '--disable-features=TranslateUI,BlinkGenPropertyTrees',
+    '--disable-client-side-phishing-detection',
+    '--disable-component-update',
+    '--disable-domain-reliability',
+    '--disable-features=AudioServiceOutOfProcess',
+    '--disable-hang-monitor',
     '--disable-ipc-flooding-protection',
+    '--disable-popup-blocking',
+    '--disable-prompt-on-repost',
     '--disable-renderer-backgrounding',
+    '--disable-sync',
+    
+    // Features to enable
     '--enable-features=NetworkService,NetworkServiceInProcess',
-    '--force-color-profile=srgb',
-    '--hide-scrollbars',
+    
+    // Performance
     '--metrics-recording-only',
     '--mute-audio',
     '--no-default-browser-check',
     '--no-first-run',
+    '--no-pings',
     '--password-store=basic',
     '--use-mock-keychain',
     '--export-tagged-pdf',
+    
+    // Misc
+    '--hide-scrollbars',
+    '--ignore-certificate-errors',
+    '--ignore-ssl-errors',
+    '--allow-running-insecure-content',
+    '--disable-blink-features=AutomationControlled',
+    '--user-agent-override',
   ]
 
   // Prefer branded Google Chrome (local + Docker/Railway) — MSC/Akamai blocks bundled Chromium
@@ -126,14 +160,23 @@ async function speedUpPage(page: Page): Promise<void> {
 
 async function addStealthScripts(context: any): Promise<void> {
   await context.addInitScript(() => {
-    // Remove webdriver property
-    Object.defineProperty(navigator, 'webdriver', { get: () => undefined })
+    // Ultra-aggressive anti-detection
     
-    // Override plugins
+    // 1. Remove ALL webdriver traces
+    Object.defineProperty(navigator, 'webdriver', { get: () => undefined })
+    delete (navigator as any).__proto__.webdriver
+    delete (window as any).navigator.webdriver
+    
+    // 2. Override automation flags
+    Object.defineProperty(navigator, 'hardwareConcurrency', { get: () => 8 })
+    Object.defineProperty(navigator, 'deviceMemory', { get: () => 8 })
+    Object.defineProperty(navigator, 'maxTouchPoints', { get: () => 0 })
+    
+    // 3. Comprehensive plugins
     Object.defineProperty(navigator, 'plugins', {
       get: () => [
         {
-          0: { type: 'application/x-google-chrome-pdf', suffixes: 'pdf', description: 'Portable Document Format' },
+          0: { type: 'application/x-google-chrome-pdf', suffixes: 'pdf', description: 'Portable Document Format', enabledPlugin: { name: 'Chrome PDF Plugin' } },
           description: 'Portable Document Format',
           filename: 'internal-pdf-viewer',
           length: 1,
@@ -157,27 +200,96 @@ async function addStealthScripts(context: any): Promise<void> {
       ],
     })
 
-    // Override languages
+    // 4. Languages and platform
     Object.defineProperty(navigator, 'languages', {
       get: () => ['en-US', 'en'],
     })
+    Object.defineProperty(navigator, 'language', {
+      get: () => 'en-US',
+    })
 
-    // Override permissions
+    // 5. Permissions override
     const originalQuery = window.navigator.permissions.query
     window.navigator.permissions.query = (parameters: any) =>
       parameters.name === 'notifications'
         ? Promise.resolve({ state: Notification.permission } as PermissionStatus)
         : originalQuery(parameters)
 
-    // Chrome object
+    // 6. Full Chrome object
     ;(window as any).chrome = {
-      runtime: {},
-      loadTimes: () => {},
-      csi: () => {},
-      app: {},
+      runtime: {
+        PlatformOs: {
+          MAC: 'mac',
+          WIN: 'win',
+          ANDROID: 'android',
+          CROS: 'cros',
+          LINUX: 'linux',
+          OPENBSD: 'openbsd',
+        },
+        PlatformArch: {
+          ARM: 'arm',
+          X86_32: 'x86-32',
+          X86_64: 'x86-64',
+        },
+        PlatformNaclArch: {
+          ARM: 'arm',
+          X86_32: 'x86-32',
+          X86_64: 'x86-64',
+        },
+        RequestUpdateCheckStatus: {
+          THROTTLED: 'throttled',
+          NO_UPDATE: 'no_update',
+          UPDATE_AVAILABLE: 'update_available',
+        },
+        OnInstalledReason: {
+          INSTALL: 'install',
+          UPDATE: 'update',
+          CHROME_UPDATE: 'chrome_update',
+          SHARED_MODULE_UPDATE: 'shared_module_update',
+        },
+        OnRestartRequiredReason: {
+          APP_UPDATE: 'app_update',
+          OS_UPDATE: 'os_update',
+          PERIODIC: 'periodic',
+        },
+      },
+      loadTimes: () => ({
+        requestTime: Date.now() / 1000 - Math.random(),
+        startLoadTime: Date.now() / 1000 - Math.random(),
+        commitLoadTime: Date.now() / 1000 - Math.random(),
+        finishDocumentLoadTime: Date.now() / 1000 - Math.random(),
+        finishLoadTime: Date.now() / 1000 - Math.random(),
+        firstPaintTime: Date.now() / 1000 - Math.random(),
+        firstPaintAfterLoadTime: 0,
+        navigationType: 'Other',
+        wasFetchedViaSpdy: false,
+        wasNpnNegotiated: true,
+        npnNegotiatedProtocol: 'h2',
+        wasAlternateProtocolAvailable: false,
+        connectionInfo: 'h2',
+      }),
+      csi: () => ({
+        startE: Date.now(),
+        onloadT: Date.now(),
+        pageT: Date.now() - Math.random() * 1000,
+        tran: 15,
+      }),
+      app: {
+        isInstalled: false,
+        InstallState: {
+          DISABLED: 'disabled',
+          INSTALLED: 'installed',
+          NOT_INSTALLED: 'not_installed',
+        },
+        RunningState: {
+          CANNOT_RUN: 'cannot_run',
+          READY_TO_RUN: 'ready_to_run',
+          RUNNING: 'running',
+        },
+      },
     }
 
-    // WebGL vendor override
+    // 7. WebGL vendor and renderer
     const getParameter = WebGLRenderingContext.prototype.getParameter
     WebGLRenderingContext.prototype.getParameter = function (parameter) {
       if (parameter === 37445) {
@@ -188,23 +300,82 @@ async function addStealthScripts(context: any): Promise<void> {
       }
       return getParameter.call(this, parameter)
     }
+    
+    const getParameter2 = WebGL2RenderingContext.prototype.getParameter
+    WebGL2RenderingContext.prototype.getParameter = function (parameter) {
+      if (parameter === 37445) {
+        return 'Intel Inc.'
+      }
+      if (parameter === 37446) {
+        return 'Intel Iris OpenGL Engine'
+      }
+      return getParameter2.call(this, parameter)
+    }
 
-    // Canvas fingerprint randomization
+    // 8. Canvas fingerprint randomization with noise
     const originalToDataURL = HTMLCanvasElement.prototype.toDataURL
     HTMLCanvasElement.prototype.toDataURL = function (...args) {
       const context = this.getContext('2d')
-      if (context) {
+      if (context && this.width > 0 && this.height > 0) {
         const imageData = context.getImageData(0, 0, this.width, this.height)
         for (let i = 0; i < imageData.data.length; i += 4) {
-          imageData.data[i] = imageData.data[i] + Math.floor(Math.random() * 3) - 1
+          imageData.data[i] = imageData.data[i] + Math.floor(Math.random() * 5) - 2
+          imageData.data[i + 1] = imageData.data[i + 1] + Math.floor(Math.random() * 5) - 2
+          imageData.data[i + 2] = imageData.data[i + 2] + Math.floor(Math.random() * 5) - 2
         }
         context.putImageData(imageData, 0, 0)
       }
       return originalToDataURL.apply(this, args)
     }
-
-    // Remove automation indicators
-    delete (navigator as any).__proto__.webdriver
+    
+    // 9. Battery API
+    if ('getBattery' in navigator) {
+      const originalGetBattery = (navigator as any).getBattery
+      ;(navigator as any).getBattery = async () => {
+        const battery = await originalGetBattery.call(navigator)
+        Object.defineProperty(battery, 'charging', { get: () => true })
+        Object.defineProperty(battery, 'chargingTime', { get: () => 0 })
+        Object.defineProperty(battery, 'dischargingTime', { get: () => Infinity })
+        Object.defineProperty(battery, 'level', { get: () => 1 })
+        return battery
+      }
+    }
+    
+    // 10. Connection API
+    if ('connection' in navigator) {
+      Object.defineProperty((navigator as any).connection, 'rtt', { get: () => 100 })
+      Object.defineProperty((navigator as any).connection, 'downlink', { get: () => 10 })
+      Object.defineProperty((navigator as any).connection, 'effectiveType', { get: () => '4g' })
+    }
+    
+    // 11. Media devices
+    if (navigator.mediaDevices && navigator.mediaDevices.enumerateDevices) {
+      const originalEnumerateDevices = navigator.mediaDevices.enumerateDevices
+      navigator.mediaDevices.enumerateDevices = async () => {
+        const devices = await originalEnumerateDevices.call(navigator.mediaDevices)
+        return devices.length > 0 ? devices : [
+          { deviceId: 'default', groupId: 'default', kind: 'audioinput' as MediaDeviceKind, label: '' },
+          { deviceId: 'default', groupId: 'default', kind: 'videoinput' as MediaDeviceKind, label: '' },
+        ]
+      }
+    }
+    
+    // 12. Screen properties
+    Object.defineProperty(screen, 'availWidth', { get: () => screen.width })
+    Object.defineProperty(screen, 'availHeight', { get: () => screen.height })
+    Object.defineProperty(screen, 'availTop', { get: () => 0 })
+    Object.defineProperty(screen, 'availLeft', { get: () => 0 })
+    
+    // 13. Date override for timezone consistency
+    const originalDate = Date
+    const offset = new Date().getTimezoneOffset()
+    
+    // 14. Remove automation console messages
+    const originalConsoleDebug = console.debug
+    console.debug = (...args: any[]) => {
+      if (args[0]?.includes?.('DevTools')) return
+      return originalConsoleDebug.apply(console, args)
+    }
   })
 }
 
