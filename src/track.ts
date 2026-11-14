@@ -29,8 +29,7 @@ const SCRAPER_BASE =
   import.meta.env.VITE_SCRAPER_URL?.replace(/\/$/, '') || ''
 
 /**
- * Multi-carrier search via Vercel Serverless `/api/scrape` (one carrier per invocation).
- * No carrier APIs — Playwright page scraping only.
+ * Multi-carrier search via Vercel Serverless `POST /api/track` (one carrier per call).
  */
 export async function trackContainer(
   containerNumber: string,
@@ -101,7 +100,7 @@ async function scrapeCarrier(
 
   let response: Response
   try {
-    response = await fetch(`${SCRAPER_BASE}/api/scrape`, {
+    response = await fetch(`${SCRAPER_BASE}/api/track`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ containerNumber, carrierId }),
@@ -111,7 +110,16 @@ async function scrapeCarrier(
       trackingError: {
         code: 'PROVIDER_UNAVAILABLE',
         message:
-          'פונקציית הסריקה לא זמינה. בדקו שהפרויקט רץ על Vercel Serverless או דרך npm run server.',
+          'פונקציית הסריקה לא זמינה. בדקו שהפרויקט רץ על Vercel Serverless.',
+      } satisfies TrackingError,
+    })
+  }
+
+  if (response.status === 404 || response.status === 405) {
+    throw Object.assign(new Error('track endpoint missing'), {
+      trackingError: {
+        code: 'PROVIDER_UNAVAILABLE',
+        message: `נתיב /api/track החזיר ${response.status}. רעננו את העמוד אחרי דיפלוי.`,
       } satisfies TrackingError,
     })
   }
@@ -119,7 +127,6 @@ async function scrapeCarrier(
   const json = (await response.json()) as ScrapeApiResponse
 
   if (!json.ok) {
-    // Soft-fail per carrier except hard invalid input
     if (json.error.code === 'INVALID_CONTAINER_NUMBER') {
       throw Object.assign(new Error(json.error.message), {
         trackingError: json.error,
@@ -155,7 +162,6 @@ function withMeta(
   }
 }
 
-/** Wrap trackContainer so App can show typed errors from throws */
 export async function trackContainerSafe(
   containerNumber: string,
   onProgress?: ProgressCallback,

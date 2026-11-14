@@ -8,7 +8,10 @@ import {
 import { scrapeCarrier } from './scrapers/index.js'
 import type { ScrapeResult, SearchEvent } from './types.js'
 
-const THROTTLE_MS = Number(process.env.SCRAPE_THROTTLE_MS ?? 1500)
+const THROTTLE_MS = Number(
+  process.env.SCRAPE_THROTTLE_MS ??
+    (process.env.VERCEL ? 400 : 1500),
+)
 
 /**
  * Multi-carrier search using browser scraping only (no carrier APIs).
