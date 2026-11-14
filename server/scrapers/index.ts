@@ -1,6 +1,7 @@
 import type { Carrier } from '../carriers.js'
 import { withPage } from '../browser.js'
 import type { CarrierScrapeOutcome } from '../types.js'
+import { scrapeCosco } from './cosco.js'
 import { scrapeCarrierPage } from './generic.js'
 import { scrapeMsc } from './msc.js'
 
@@ -11,6 +12,9 @@ export async function scrapeCarrier(
   return withPage(async (page) => {
     if (carrier.id === 'msc') {
       return scrapeMsc(page, carrier, containerNumber)
+    }
+    if (carrier.id === 'cosco') {
+      return scrapeCosco(page, carrier, containerNumber)
     }
     return scrapeCarrierPage(page, carrier, containerNumber)
   })

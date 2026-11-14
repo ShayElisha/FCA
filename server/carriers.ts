@@ -84,9 +84,11 @@ export const CARRIERS: Carrier[] = [
     id: 'cosco',
     name: 'COSCO',
     nameHe: 'COSCO',
-    ownerCodes: ['CSN', 'COS', 'CBHU', 'COSU', 'CSNU'],
+    ownerCodes: ['CSN', 'COS', 'CBHU', 'COSU', 'CSNU', 'CCLU', 'CSLU'],
     trackingUrl:
-      'https://world.lines.coscoshipping.com/estore/public/cargoTracking',
+      'https://elines.coscoshipping.com/ebusiness/cargoTracking',
+    directTrackUrl: (c) =>
+      `https://elines.coscoshipping.com/scct/public/ct/base?lang=en&trackingType=container&number=${c}`,
     priority: 7,
   },
   {

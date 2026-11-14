@@ -117,8 +117,8 @@ export default function App() {
         <p className="brand-mark">FCA</p>
         <h1>מעקב מכולות רב־חברתי</h1>
         <p className="lede">
-          הזינו מספר מכולה לחיפוש באתרי המעקב. הסריקה עוברת דרך שרת Chrome
-          מקומי (ngrok) כדי לעקוף את חסימת Vercel.
+          הזינו מספר מכולה לחיפוש באתרי המעקב. הסריקה רצה על שרת Chrome ייעודי
+          (Railway) דרך Vercel.
         </p>
         {health && (
           <p
@@ -127,8 +127,8 @@ export default function App() {
             }
           >
             {health.readyForMsc
-              ? 'מחובר לשרת Chrome מקומי — מוכן ל־MSC'
-              : 'לא מחובר לשרת Chrome. הפעילו npm run dev + ngrok ואז רעננו.'}
+              ? 'מחובר לשרת Chrome — מוכן לסריקה'
+              : 'לא מחובר לשרת Chrome. בדקו /api/health ורעננו.'}
           </p>
         )}
       </header>

@@ -80,7 +80,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         error: {
           code: 'PROVIDER_UNAVAILABLE',
           message:
-            'שרת הסריקה עם Chrome לא זמין כרגע. השאירו npm run dev + ngrok דולקים.',
+            'שרת הסריקה עם Chrome לא זמין כרגע. בדקו את Railway /api/health ונסו שוב.',
           details: error instanceof Error ? error.message : String(error),
         },
       })

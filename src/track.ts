@@ -38,8 +38,8 @@ const SCRAPER_BASE =
 const CONCURRENCY = Number(import.meta.env.VITE_SCRAPE_CONCURRENCY ?? 4)
 
 const BLOCKED_MSG =
-  'הסריקה נחסמה כרגע. ודאו ש־npm run dev ו־ngrok רצים, רעננו את העמוד, ונסו שוב. ' +
-  'אם זה ממשיך — בדקו ב־/api/health ש־readyForMsc=true.'
+  'הסריקה נחסמה באתר החברה (הגנת בוטים). רעננו ונסו שוב. ' +
+  'אם זה ממשיך — בדקו ב־/api/health ש־readyForMsc=true (חיבור לשרת Chrome).'
 
 /**
  * Multi-carrier search with accurate blocked vs not-found handling.
@@ -90,11 +90,11 @@ export async function trackContainer(
       return { ok: true, data: withMeta(hit, checked, true, 'prefix') }
     }
 
-    // Prefix carrier blocked (e.g. MSC on Vercel) — stop early with clear guidance
-    const primaryBlocked = outcomes.every(
-      (o) => o.kind === 'blocked' || o.kind === 'error',
-    )
-    if (primaryBlocked && outcomes.length > 0) {
+    // Only stop early on a true bot-block of every prefix carrier.
+    // Errors / not_found should continue to the other carriers' sites.
+    const primaryBlocked =
+      outcomes.length > 0 && outcomes.every((o) => o.kind === 'blocked')
+    if (primaryBlocked) {
       report('done')
       const names = primary.map((c) => c.name).join(', ')
       return {
@@ -204,7 +204,7 @@ async function scrapeCarrier(
       trackingError: {
         code: 'PROVIDER_UNAVAILABLE',
         message:
-          'שרת הסריקה לא זמין. השאירו npm run dev + ngrok דולקים.',
+          'שרת הסריקה לא זמין כרגע. בדקו /api/health ונסו שוב.',
       } satisfies TrackingError,
     })
   }

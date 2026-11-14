@@ -18,9 +18,29 @@ const INPUT_SELECTORS = [
   'input[aria-label*="container" i]',
   'input[name*="tracking" i]',
   'input[name="trackingNumber"]',
+  'input.ant-input',
   'input[type="search"]',
   'input[type="text"]',
 ]
+
+async function dismissCookieBanners(page: Page): Promise<void> {
+  for (const label of [
+    'Allow All',
+    'Accept All',
+    'Accept all',
+    'Accept',
+    'Agree',
+    'I agree',
+    'Got it',
+    'Confirm',
+  ]) {
+    const btn = page.getByRole('button', { name: new RegExp(`^${label}$`, 'i') }).first()
+    if (await btn.isVisible().catch(() => false)) {
+      await btn.click({ timeout: 1500 }).catch(() => undefined)
+      await page.waitForTimeout(300)
+    }
+  }
+}
 
 const SUBMIT_SELECTORS = [
   'button[type="submit"]',
@@ -42,11 +62,12 @@ export async function scrapeCarrierPage(
 
     await page.goto(url, {
       waitUntil: 'domcontentloaded',
-      timeout: 12000,
+      timeout: 20000,
     })
 
     // Brief settle only — avoid long fixed sleeps / networkidle
     await page.waitForTimeout(usedDirect ? 400 : 600)
+    await dismissCookieBanners(page)
 
     const bodyEarly = await page.locator('body').innerText().catch(() => '')
     if (pageLooksBlocked(bodyEarly)) {
