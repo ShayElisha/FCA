@@ -9,7 +9,9 @@
 2. כל קריאה היא Serverless Function עם Chromium (`@sparticuz/chromium`)
 3. אם לא נמצא — ממשיכים לחברה הבאה
 
-## הרצה מקומית
+## הרצה מקומית (מומלץ ל-MSC)
+
+MSC חוסם Chromium מובנה של Playwright (Akamai). מקומית צריך **Google Chrome מותקן** — הסקרייפר ישתמש ב־`channel: 'chrome'`.
 
 ```bash
 npm install
@@ -18,7 +20,11 @@ npm run dev
 ```
 
 - UI: http://localhost:5173  
-- שרת תואם ל־`/api/scrape`: http://localhost:8787  
+- שרת: http://localhost:8787  
+
+בדיקת MSC:
+`npx tsx scripts/test-msc-container.mts MSCU6789016`
+
 
 ## Production
 
