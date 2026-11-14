@@ -26,8 +26,28 @@ export default function App() {
     const load = async () => {
       try {
         const res = await fetch('/api/health', { cache: 'no-store' })
-        const json = (await res.json()) as HealthState
-        if (!cancelled) setHealth(json)
+        const json = (await res.json()) as HealthState & {
+          ok?: boolean
+          mode?: string
+        }
+        const readyForMsc = Boolean(
+          json.readyForMsc ||
+            json.mode === 'local-scrape' ||
+            json.mode === 'chrome-host' ||
+            json.mode === 'proxy-to-chrome-host',
+        )
+        if (!cancelled) {
+          setHealth({
+            readyForMsc,
+            upstreamConfigured: Boolean(json.upstreamConfigured),
+            upstreamOk:
+              json.upstreamOk ??
+              (json.mode === 'local-scrape' || json.mode === 'chrome-host'
+                ? true
+                : null),
+            mode: json.mode || 'unknown',
+          })
+        }
       } catch {
         if (!cancelled) {
           setHealth({

@@ -16,11 +16,20 @@ app.use(cors())
 app.use(express.json())
 
 app.get('/api/health', (_req, res) => {
+  const mode =
+    process.env.SCRAPE_MODE === 'chrome' ? 'chrome-host' : 'local-scrape'
+  res.setHeader('Cache-Control', 'no-store')
   res.json({
     ok: true,
-    mode: process.env.SCRAPE_MODE === 'chrome' ? 'chrome-host' : 'local-scrape',
+    mode,
     message:
       'Chrome/Playwright scraper host — point Vercel SCRAPER_UPSTREAM_URL here',
+    upstreamConfigured: false,
+    upstreamOk: true,
+    upstreamMode: mode,
+    upstreamError: null,
+    // Local Chrome host is itself the scraper — UI should show connected
+    readyForMsc: true,
   })
 })
 
