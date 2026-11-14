@@ -1,4 +1,5 @@
 import type { Browser, Page } from 'playwright-core'
+import { applyCdpStealth } from './stealth-cdp.js'
 
 const isServerless =
   Boolean(process.env.VERCEL) ||
@@ -113,19 +114,26 @@ async function launchBrowser(): Promise<Browser> {
     '--user-agent-override',
   ]
 
-  // Prefer branded Google Chrome (local + Docker/Railway) — MSC/Akamai blocks bundled Chromium
+  // ALWAYS prefer branded Google Chrome (local + Docker/Railway) — carrier sites block bundled Chromium
   if (preferChrome && process.env.SCRAPE_FORCE_BUNDLED !== '1') {
     try {
-      return await chromium.launch({
+      console.log('🔍 Attempting to launch real Chrome (recommended for bypass)...')
+      const browser = await chromium.launch({
         channel: 'chrome',
         headless: true,
         args: chromeArgs,
       })
-    } catch {
+      console.log('✅ Real Chrome launched successfully')
+      return browser
+    } catch (error) {
+      console.warn('⚠️  Real Chrome not found, falling back to Chromium (may be blocked)')
+      console.warn('   Install Chrome: https://www.google.com/chrome/')
+      console.warn('   Or set SCRAPE_FORCE_BUNDLED=1 to suppress this warning')
       // Fall through to Playwright-bundled Chromium
     }
   }
 
+  console.log('⚠️  Using bundled Chromium (carriers may block this)')
   return chromium.launch({
     headless: true,
     args: chromeArgs,
@@ -414,7 +422,9 @@ export async function withPage<T>(
     },
   })
 
+  // Apply ultra-stealth patches
   await addStealthScripts(context)
+  await applyCdpStealth(context)
   
   const page = await context.newPage()
   page.setDefaultTimeout(timeoutMs)
