@@ -1,5 +1,9 @@
 import type { Browser, Page } from 'playwright-core'
 import { applyCdpStealth } from './stealth-cdp.js'
+import { UniversalBypass } from './universal-bypass.js'
+
+// Global bypass instance with adaptive learning
+const universalBypass = new UniversalBypass()
 
 const isServerless =
   Boolean(process.env.VERCEL) ||
@@ -425,6 +429,7 @@ export async function withPage<T>(
   // Apply ultra-stealth patches
   await addStealthScripts(context)
   await applyCdpStealth(context)
+  await universalBypass.applyToContext(context)
   
   const page = await context.newPage()
   page.setDefaultTimeout(timeoutMs)
@@ -441,4 +446,8 @@ export async function withPage<T>(
 
 export async function closeBrowser(): Promise<void> {
   // Fresh browser per request.
+}
+
+export function getUniversalBypass(): UniversalBypass {
+  return universalBypass
 }
