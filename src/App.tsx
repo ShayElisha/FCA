@@ -18,9 +18,9 @@ export default function App() {
     if (normalized.length < 3) return null
     const detected = detectCarriersByOwnerCode(normalized)
     if (detected.length === 0) {
-      return 'קידומת לא מזוהה — יבוצע חיפוש בכל חברות הספנות'
+      return 'קידומת לא מזוהה — יבוצע חיפוש בדפי המעקב של כל החברות'
     }
-    return `זוהתה קידומת של ${detected.map((c) => c.name).join(' / ')} · אם לא יימצא — חיפוש בכל השאר`
+    return `זוהתה קידומת של ${detected.map((c) => c.name).join(' / ')} · אם לא יימצא — סריקה של שאר האתרים`
   }, [input])
 
   async function onSubmit(event: FormEvent) {
@@ -63,8 +63,8 @@ export default function App() {
         <p className="brand-mark">FCA</p>
         <h1>מעקב מכולות רב־חברתי</h1>
         <p className="lede">
-          הזינו מספר מכולה אחד — המערכת מזהה את חברת הספנות לפי הקידומת,
-          ואם צריך מחפשת אוטומטית בכל החברות הנתמכות עד שמוצאים ETA לישראל.
+          הזינו מספר מכולה — המערכת סורקת ישירות את אתרי המעקב של חברות
+          הספנות (דפדפן אוטומטי), בלי חיבור ל־API שלהן, ומציגה ETA לישראל.
         </p>
       </header>
 
@@ -91,11 +91,11 @@ export default function App() {
               disabled={loading}
             />
             <button type="submit" disabled={loading}>
-              {loading ? 'מחפש…' : 'חפש בכל החברות'}
+              {loading ? 'סורק אתרים…' : 'חפש בכל החברות'}
             </button>
           </div>
           <p id="container-help" className="help">
-            ISO 6346 · חיפוש ב־{CARRIERS.length} חברות ספנות
+            ISO 6346 · סריקת דפי מעקב של {CARRIERS.length} חברות
           </p>
           {liveHint && !fieldError && <p className="hint">{liveHint}</p>}
           {fieldError && (
@@ -120,8 +120,8 @@ export default function App() {
 
       <footer>
         <p>
-          MVP: זיהוי קידומת + חיפוש מאוחד. חיבורי API אמיתיים לכל חברה —
-          בשלב הבא.
+          מקור הנתונים: סריקת דפי Track &amp; Trace הציבוריים באמצעות Playwright.
+          אין שימוש ב־API של חברות הספנות.
         </p>
       </footer>
     </div>
@@ -131,7 +131,7 @@ export default function App() {
 function CarrierStrip() {
   return (
     <section className="carriers" aria-label="חברות ספנות נתמכות">
-      <p className="carriers-label">חברות בחיפוש</p>
+      <p className="carriers-label">אתרים בסריקה</p>
       <ul>
         {CARRIERS.map((carrier) => (
           <li key={carrier.id}>{carrier.name}</li>
@@ -144,9 +144,9 @@ function CarrierStrip() {
 function SearchStatus({ progress }: { progress: SearchProgress }) {
   const phaseLabel =
     progress.phase === 'prefix'
-      ? 'בודק לפי קידומת המכולה'
+      ? 'סורק לפי קידומת המכולה'
       : progress.phase === 'fanout'
-        ? 'לא נמצא בקידומת — סורק את שאר החברות'
+        ? 'לא נמצא בקידומת — עובר לאתרים הבאים'
         : 'מסיים'
 
   return (
@@ -156,7 +156,7 @@ function SearchStatus({ progress }: { progress: SearchProgress }) {
         <span> · כעת: {progress.currentCarrierName}</span>
       )}
       <div className="progress-meta">
-        נבדקו {progress.checked.length}/{progress.total}
+        נסרקו {progress.checked.length}/{progress.total}
         {progress.checked.length > 0 && (
           <> · {progress.checked.slice(-4).join(', ')}</>
         )}
@@ -179,12 +179,12 @@ function ResultCard({ data }: { data: ContainerTrackingResult }) {
         dateStyle: 'medium',
         timeStyle: 'short',
       })
-    : 'ETA לא זמין'
+    : data.etaRaw || 'ETA לא זמין בעמוד'
 
   const strategyLabel =
     data.searchMeta.strategy === 'prefix'
-      ? 'נמצא לפי קידומת המכולה'
-      : 'נמצא בחיפוש מורחב בין החברות'
+      ? 'נמצא באתר שזוהה לפי קידומת'
+      : 'נמצא לאחר סריקה מורחבת בין האתרים'
 
   return (
     <section className="result" aria-live="polite">
@@ -192,7 +192,7 @@ function ResultCard({ data }: { data: ContainerTrackingResult }) {
         <h2>תוצאת מעקב</h2>
         <div className="badges">
           <span className="badge carrier">{data.carrierName}</span>
-          {data.demo && <span className="badge">מצב הדגמה</span>}
+          <span className="badge">סריקת אתר</span>
         </div>
       </div>
 
@@ -230,7 +230,7 @@ function ResultCard({ data }: { data: ContainerTrackingResult }) {
           </dd>
         </div>
         <div>
-          <dt>חברות שנסרקו</dt>
+          <dt>אתרים שנסרקו</dt>
           <dd>{data.searchMeta.searchedCarrierIds.length}</dd>
         </div>
         <div>

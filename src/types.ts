@@ -16,7 +16,7 @@ export interface ContainerTrackingResult {
   vesselName?: string
   voyageNumber?: string
   retrievedAt: string
-  demo: boolean
+  source: 'scrape'
   searchMeta: {
     detectedFromPrefix: boolean
     searchedCarrierIds: CarrierId[]
