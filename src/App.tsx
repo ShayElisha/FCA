@@ -167,7 +167,9 @@ function SearchStatus({ progress }: { progress: SearchProgress }) {
 function ResultCard({ data }: { data: ContainerTrackingResult }) {
   const israelLabel =
     data.israelPort === 'Unknown'
-      ? 'לא זוהה יעד ישראלי'
+      ? data.destinationPort
+        ? `${data.destinationPort} (לא יעד ישראלי)`
+        : 'לא זוהה יעד ישראלי'
       : data.israelPort === 'Ashdod'
         ? 'נמל אשדוד'
         : 'נמל חיפה'

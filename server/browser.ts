@@ -5,7 +5,7 @@ const isServerless =
   Boolean(process.env.AWS_LAMBDA_FUNCTION_NAME) ||
   process.env.SCRAPE_MODE === 'serverless'
 
-const PAGE_TIMEOUT_MS = Number(process.env.SCRAPE_PAGE_TIMEOUT_MS ?? 14000)
+const PAGE_TIMEOUT_MS = Number(process.env.SCRAPE_PAGE_TIMEOUT_MS ?? 20000)
 
 async function launchBrowser(): Promise<Browser> {
   if (isServerless) {
@@ -19,22 +19,30 @@ async function launchBrowser(): Promise<Browser> {
     })
   }
 
+  // Prefer installed Google Chrome — Akamai blocks Playwright's bundled Chromium
   const { chromium } = await import('playwright')
-  return chromium.launch({
-    headless: true,
-    args: ['--disable-blink-features=AutomationControlled'],
-  })
+  try {
+    return await chromium.launch({
+      channel: 'chrome',
+      headless: true,
+      args: ['--disable-blink-features=AutomationControlled'],
+    })
+  } catch {
+    return chromium.launch({
+      headless: true,
+      args: ['--disable-blink-features=AutomationControlled'],
+    })
+  }
 }
 
-/** Block heavy assets — biggest speed win for tracking pages */
 async function speedUpPage(page: Page): Promise<void> {
   await page.route('**/*', (route) => {
     const type = route.request().resourceType()
+    // Keep stylesheet — some SPAs need it; still block heavy media
     if (
       type === 'image' ||
       type === 'media' ||
       type === 'font' ||
-      type === 'stylesheet' ||
       type === 'texttrack' ||
       type === 'eventsource' ||
       type === 'websocket' ||
@@ -62,9 +70,12 @@ export async function withPage<T>(
   const context = await browser.newContext({
     locale: 'en-US',
     userAgent:
-      'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-    viewport: { width: 1280, height: 720 },
+      'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+    viewport: { width: 1400, height: 900 },
     javaScriptEnabled: true,
+  })
+  await context.addInitScript(() => {
+    Object.defineProperty(navigator, 'webdriver', { get: () => undefined })
   })
   const page = await context.newPage()
   page.setDefaultTimeout(timeoutMs)
@@ -80,5 +91,5 @@ export async function withPage<T>(
 }
 
 export async function closeBrowser(): Promise<void> {
-  // Fresh browser per request on serverless.
+  // Fresh browser per request.
 }

@@ -50,8 +50,11 @@ export function extractStatus(text: string): string {
 }
 
 export function pageLooksBlocked(text: string): boolean {
-  return /captcha|cloudflare|access denied|attention required|bot detection|verify you are human/i.test(
-    text,
+  // Avoid false positives on pages that merely mention "cloudflare" in scripts/footer.
+  return (
+    /access denied|you don't have permission to access|attention required|verify you are human|bot detection|cf-browser-verification|just a moment\.\.\./i.test(
+      text,
+    ) || /^\s*access denied\b/i.test(text.trim())
   )
 }
 
@@ -63,18 +66,22 @@ export function pageLooksNotFound(text: string): boolean {
 
 export function parseLooseDate(raw?: string): string | null {
   if (!raw) return null
-  const parsed = Date.parse(raw)
-  if (!Number.isNaN(parsed)) return new Date(parsed).toISOString()
 
+  // Shipping sites (MSC etc.) use DD/MM/YYYY — prefer that over Date.parse (US MM/DD).
   const dmy = raw.match(/(\d{1,2})[\/.\-](\d{1,2})[\/.\-](\d{2,4})/)
   if (dmy) {
     const day = Number(dmy[1])
     const month = Number(dmy[2])
     let year = Number(dmy[3])
     if (year < 100) year += 2000
-    const dt = new Date(Date.UTC(year, month - 1, day, 6, 0, 0))
-    if (!Number.isNaN(dt.getTime())) return dt.toISOString()
+    if (month >= 1 && month <= 12 && day >= 1 && day <= 31) {
+      const dt = new Date(Date.UTC(year, month - 1, day, 6, 0, 0))
+      if (!Number.isNaN(dt.getTime())) return dt.toISOString()
+    }
   }
+
+  const parsed = Date.parse(raw)
+  if (!Number.isNaN(parsed)) return new Date(parsed).toISOString()
   return null
 }
 

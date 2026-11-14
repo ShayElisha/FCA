@@ -167,6 +167,11 @@ async function scrapeCarrier(
     return { ...json.data, source: 'scrape' }
   }
 
+  // Surface block reason for the primary carrier in progress UIs via details
+  if (json.status === 'blocked' && json.details) {
+    console.warn('carrier blocked', carrierId, json.details)
+  }
+
   return null
 }
 
