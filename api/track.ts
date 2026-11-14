@@ -45,7 +45,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     try {
       const proxied = await fetch(`${upstream}/api/track`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          // Free ngrok interstitial bypass for server-to-server calls
+          'ngrok-skip-browser-warning': 'true',
+        },
         body: JSON.stringify(req.body ?? {}),
       })
       const text = await proxied.text()
