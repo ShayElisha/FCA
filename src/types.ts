@@ -1,7 +1,11 @@
+import type { CarrierId } from './carriers'
+
 export type IsraelPort = 'Ashdod' | 'Haifa' | 'Unknown'
 
 export interface ContainerTrackingResult {
   containerNumber: string
+  carrierId: CarrierId
+  carrierName: string
   status: string
   currentLocation?: string
   originPort?: string
@@ -13,9 +17,21 @@ export interface ContainerTrackingResult {
   voyageNumber?: string
   retrievedAt: string
   demo: boolean
+  searchMeta: {
+    detectedFromPrefix: boolean
+    searchedCarrierIds: CarrierId[]
+    strategy: 'prefix' | 'fanout'
+  }
 }
 
 export interface TrackingError {
   code: string
   message: string
+}
+
+export interface SearchProgress {
+  phase: 'prefix' | 'fanout' | 'done'
+  currentCarrierName?: string
+  checked: string[]
+  total: number
 }

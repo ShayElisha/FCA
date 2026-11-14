@@ -1,0 +1,157 @@
+export type CarrierId =
+  | 'msc'
+  | 'maersk'
+  | 'cma_cgm'
+  | 'hapag_lloyd'
+  | 'cosco'
+  | 'one'
+  | 'evergreen'
+  | 'zim'
+  | 'yang_ming'
+  | 'hmm'
+  | 'oocl'
+  | 'pil'
+  | 'wan_hai'
+
+export interface Carrier {
+  id: CarrierId
+  name: string
+  nameHe: string
+  /** ISO 6346 owner codes commonly associated with this line */
+  ownerCodes: string[]
+  trackingUrl: string
+}
+
+export const CARRIERS: Carrier[] = [
+  {
+    id: 'msc',
+    name: 'MSC',
+    nameHe: 'MSC',
+    ownerCodes: ['MSC'],
+    trackingUrl: 'https://www.msc.com/en/track-a-shipment',
+  },
+  {
+    id: 'maersk',
+    name: 'Maersk',
+    nameHe: 'מארסק',
+    ownerCodes: ['MSK', 'MAE', 'MRK', 'MAEU', 'MRSU', 'MWMU'],
+    trackingUrl: 'https://www.maersk.com/tracking',
+  },
+  {
+    id: 'cma_cgm',
+    name: 'CMA CGM',
+    nameHe: 'CMA CGM',
+    ownerCodes: ['CMA', 'CGM', 'CMDU', 'CADU'],
+    trackingUrl: 'https://www.cma-cgm.com/ebusiness/tracking',
+  },
+  {
+    id: 'hapag_lloyd',
+    name: 'Hapag-Lloyd',
+    nameHe: 'הפג-לויד',
+    ownerCodes: ['HLX', 'HLC', 'HLCU', 'HASU', 'HLXU'],
+    trackingUrl: 'https://www.hapag-lloyd.com/en/online-business/track.html',
+  },
+  {
+    id: 'cosco',
+    name: 'COSCO',
+    nameHe: 'COSCO',
+    ownerCodes: ['CSN', 'COS', 'CBHU', 'COSU', 'CSNU'],
+    trackingUrl: 'https://world.lines.coscoshipping.com/estore/public/cargoTracking',
+  },
+  {
+    id: 'one',
+    name: 'ONE',
+    nameHe: 'ONE',
+    ownerCodes: ['ONE', 'ONY', 'NYK', 'MOL', 'KKT', 'ONEY', 'MOAU'],
+    trackingUrl: 'https://ecomm.one-line.com/one-ecom/manage-shipment/cargo-tracking',
+  },
+  {
+    id: 'evergreen',
+    name: 'Evergreen',
+    nameHe: 'אברגרין',
+    ownerCodes: ['EGH', 'EIS', 'EMC', 'EITU', 'EMCU', 'EGHU'],
+    trackingUrl: 'https://www.evergreen-line.com/',
+  },
+  {
+    id: 'zim',
+    name: 'ZIM',
+    nameHe: 'צים',
+    ownerCodes: ['ZIM', 'ZCS', 'ZIMU', 'ZCSU'],
+    trackingUrl: 'https://www.zim.com/tools/track-a-shipment',
+  },
+  {
+    id: 'yang_ming',
+    name: 'Yang Ming',
+    nameHe: 'יאנג מינג',
+    ownerCodes: ['YML', 'YMCU', 'YMLU'],
+    trackingUrl: 'https://www.yangming.com/e-service/Track_Trace/track_trace_cargo_tracking.aspx',
+  },
+  {
+    id: 'hmm',
+    name: 'HMM',
+    nameHe: 'HMM',
+    ownerCodes: ['HDM', 'HMM', 'HDMU', 'HMMU'],
+    trackingUrl: 'https://www.hmm21.com/e-service/general/trackNTrace/TrackNTrace.do',
+  },
+  {
+    id: 'oocl',
+    name: 'OOCL',
+    nameHe: 'OOCL',
+    ownerCodes: ['OOL', 'OOLU'],
+    trackingUrl: 'https://www.oocl.com/eng/ourservices/eservices/cargotracking',
+  },
+  {
+    id: 'pil',
+    name: 'PIL',
+    nameHe: 'PIL',
+    ownerCodes: ['PCI', 'PCIU'],
+    trackingUrl: 'https://www.pilship.com/',
+  },
+  {
+    id: 'wan_hai',
+    name: 'Wan Hai',
+    nameHe: 'ואן האי',
+    ownerCodes: ['WHL', 'WHLU'],
+    trackingUrl: 'https://www.wanhai.com/views/cargoTrack.xhtml',
+  },
+]
+
+const OWNER_CODE_INDEX = buildOwnerIndex()
+
+function buildOwnerIndex(): Map<string, CarrierId> {
+  const map = new Map<string, CarrierId>()
+  for (const carrier of CARRIERS) {
+    for (const code of carrier.ownerCodes) {
+      map.set(code.toUpperCase(), carrier.id)
+    }
+  }
+  return map
+}
+
+export function getCarrier(id: CarrierId): Carrier {
+  return CARRIERS.find((c) => c.id === id)!
+}
+
+/**
+ * Detect likely carrier(s) from the ISO owner code (first 3 letters).
+ * Also tries 4-letter codes when present in the registry.
+ */
+export function detectCarriersByOwnerCode(containerNumber: string): Carrier[] {
+  const owner3 = containerNumber.slice(0, 3).toUpperCase()
+  const owner4 = containerNumber.slice(0, 4).toUpperCase()
+
+  const matched = new Set<CarrierId>()
+  const id4 = OWNER_CODE_INDEX.get(owner4)
+  const id3 = OWNER_CODE_INDEX.get(owner3)
+  if (id4) matched.add(id4)
+  if (id3) matched.add(id3)
+
+  return [...matched].map(getCarrier)
+}
+
+export function getSearchOrder(containerNumber: string): Carrier[] {
+  const primary = detectCarriersByOwnerCode(containerNumber)
+  const primaryIds = new Set(primary.map((c) => c.id))
+  const rest = CARRIERS.filter((c) => !primaryIds.has(c.id))
+  return [...primary, ...rest]
+}
