@@ -1,12 +1,12 @@
 #!/bin/bash
 # Vercel Ignore Build Script
 # This script determines whether Vercel should build this commit
-# Return 0 to build, 1 to skip
+# Return 1 to build, 0 to skip (Vercel convention)
 
 # Always build main branch
 if [ "$VERCEL_GIT_COMMIT_REF" = "main" ]; then
   echo "✅ Building main branch"
-  exit 0
+  exit 1
 fi
 
 # Get the list of changed files
@@ -15,7 +15,7 @@ CHANGED_FILES=$(git diff --name-only HEAD~1 HEAD)
 # If no files changed, build
 if [ -z "$CHANGED_FILES" ]; then
   echo "✅ No files changed, building"
-  exit 0
+  exit 1
 fi
 
 # Check if only documentation files changed
@@ -38,8 +38,8 @@ done <<< "$CHANGED_FILES"
 
 if [ "$DOC_ONLY" = true ]; then
   echo "⏭️  Only documentation changed, skipping build"
-  exit 1
+  exit 0
 fi
 
 echo "✅ Code changed, building"
-exit 0
+exit 1
